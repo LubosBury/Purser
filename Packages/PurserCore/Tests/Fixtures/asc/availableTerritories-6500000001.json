@@ -1,0 +1,10 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "territories", "id": "CZE", "attributes": { "currency": "CZK" } },
+    { "type": "territories", "id": "DEU", "attributes": { "currency": "EUR" } },
+    { "type": "territories", "id": "USA", "attributes": { "currency": "USD" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptionAvailabilities/av-6500000001/availableTerritories?limit=200" },
+  "meta": { "paging": { "total": 3, "limit": 200 } }
+}

@@ -1,0 +1,101 @@
+name: Purser
+options:
+  bundleIdPrefix: com.lubosbury
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  PurserCore:
+    path: Packages/PurserCore
+targets:
+  Purser:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+          - Purser.entitlements
+      # Shipped inside the app so the MIT notices travel with the binary.
+      - path: LICENSE
+        buildPhase: resources
+      - path: THIRD_PARTY_NOTICES.md
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lubosbury.purser
+        # The visible name; module and executable keep the short name (the App Store name "Purser" is taken).
+        PRODUCT_NAME: Purser Pricing
+        PRODUCT_MODULE_NAME: Purser
+        EXECUTABLE_NAME: Purser
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: App/Purser.entitlements
+    dependencies:
+      - package: PurserCore
+        product: Domain
+      - package: PurserCore
+        product: Store
+      - package: PurserCore
+        product: Audit
+      - package: PurserCore
+        product: PurserSecurity
+      - package: PurserCore
+        product: ASCClient
+      - package: PurserCore
+        product: Catalog
+      - package: PurserCore
+        product: Importer
+      - package: PurserCore
+        product: Policy
+      - package: PurserCore
+        product: Planner
+      - package: PurserCore
+        product: Executor
+      - package: PurserCore
+        product: Background
+      - target: PurserLoginItem
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/LoginItems
+  PurserLoginItem:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: LoginItem
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lubosbury.purser.LoginItem
+        PRODUCT_NAME: PurserLoginItem
+        INFOPLIST_FILE: LoginItem/Info.plist
+        CODE_SIGN_ENTITLEMENTS: LoginItem/PurserLoginItem.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_VERSION: "6.0"
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: PurserCore
+        product: Background
+      - package: PurserCore
+        product: PurserSecurity
+schemes:
+  Purser:
+    build:
+      targets:
+        Purser: all
+    run:
+      config: Debug
+    archive:
+      config: Release

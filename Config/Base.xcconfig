@@ -1,0 +1,10 @@
+// Shared build settings for every Purser target. Signing lives in Signing.local.xcconfig (gitignored).
+MACOSX_DEPLOYMENT_TARGET = 15.0
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+ENABLE_HARDENED_RUNTIME = YES
+ENABLE_APP_SANDBOX = YES
+CODE_SIGN_STYLE = Automatic
+DEAD_CODE_STRIPPING = YES
+
+#include? "Signing.local.xcconfig"

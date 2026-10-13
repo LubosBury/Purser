@@ -1,0 +1,9 @@
+{
+  "data": [
+    {"type": "territories", "id": "USA", "attributes": {"currency": "USD"}},
+    {"type": "territories", "id": "CZE", "attributes": {"currency": "CZK"}},
+    {"type": "territories", "id": "JPN", "attributes": {"currency": "JPY"}},
+    {"type": "territories", "id": "KOR", "attributes": {"currency": "KRW"}}
+  ],
+  "links": {"self": "https://api.example.invalid/v1/territories?limit=200"}
+}

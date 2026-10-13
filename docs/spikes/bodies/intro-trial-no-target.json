@@ -1,0 +1,5 @@
+{"data": {"type": "subscriptionIntroductoryOffers",
+  "attributes": {"offerMode": "FREE_TRIAL", "duration": "{{DURATION}}", "numberOfPeriods": 1, "startDate": {{START}}, "endDate": {{END}}},
+  "relationships": {
+    "subscription": {"data": {"type": "subscriptions", "id": "{{SUB}}"}},
+    "territory": {"data": {"type": "territories", "id": "{{TERRITORY}}"}}}}}

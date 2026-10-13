@@ -1,0 +1,13 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "subscriptions", "id": "6500000001",
+      "attributes": { "name": "Fruit Yearly", "productId": "fruit.yearly", "familySharable": false, "state": "APPROVED",
+                      "subscriptionPeriod": "ONE_YEAR", "groupLevel": 1 } },
+    { "type": "subscriptions", "id": "6500000002",
+      "attributes": { "name": "Fruit Monthly", "productId": "fruit.monthly", "familySharable": false, "state": "READY_TO_SUBMIT",
+                      "subscriptionPeriod": "ONE_MONTH", "groupLevel": 2 } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptionGroups/7000000001/subscriptions?limit=200" },
+  "meta": { "paging": { "total": 2, "limit": 200 } }
+}

@@ -1,0 +1,5 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": { "type": "territories", "id": "USA", "attributes": { "currency": "USD" } },
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/6600000001/baseTerritory" }
+}

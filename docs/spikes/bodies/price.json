@@ -1,0 +1,6 @@
+{"data": {"type": "subscriptionPrices",
+  "attributes": {"startDate": {{START}}, "preserveCurrentPrice": {{PRESERVE}}, "planType": "UPFRONT"},
+  "relationships": {
+    "subscription": {"data": {"type": "subscriptions", "id": "{{SUB}}"}},
+    "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "{{PP}}"}},
+    "territory": {"data": {"type": "territories", "id": "{{TERRITORY}}"}}}}}

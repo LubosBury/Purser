@@ -1,0 +1,10 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "inAppPurchases", "id": "6600000001",
+      "attributes": { "name": "Fruit Lifetime", "productId": "fruit.lifetime", "inAppPurchaseType": "NON_CONSUMABLE",
+                      "state": "APPROVED", "familySharable": false, "contentHosting": false } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/apps/6400000001/inAppPurchasesV2?limit=200" },
+  "meta": { "paging": { "total": 1, "limit": 200 } }
+}

@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core tests
+        run: make test
+      - name: Tool tests
+        run: python3 -I -m unittest discover -s Tools/tests
+      - name: Design tokens are up to date
+        run: python3 -I Tools/generate-design-tokens.py --check
+      - name: App compiles (unsigned)
+        run: |
+          brew install xcodegen
+          make build

@@ -1,0 +1,18 @@
+{
+  "data": [
+    {"type": "subscriptionPrices", "id": "price-b-usa",
+     "attributes": {"startDate": null, "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "USA"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-b-usa-3999"}}}},
+    {"type": "subscriptionPrices", "id": "price-b-cze",
+     "attributes": {"startDate": "2026-02-01", "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "CZE"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-b-cze-999"}}}}
+  ],
+  "included": [
+    {"type": "subscriptionPricePoints", "id": "pp-b-usa-3999", "attributes": {"customerPrice": "39.99", "proceeds": "33.99"}},
+    {"type": "subscriptionPricePoints", "id": "pp-b-cze-999", "attributes": {"customerPrice": "999", "proceeds": "702.55"}}
+  ],
+  "links": {"self": "https://api.example.invalid/v1/subscriptions/sub-b/prices",
+            "next": "https://api.example.invalid/v1/subscriptions/sub-b/prices?cursor=Mg&limit=200"}
+}

@@ -1,0 +1,8 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "subscriptionGroups", "id": "7000000001", "attributes": { "referenceName": "Fruit Premium" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/apps/6400000001/subscriptionGroups?limit=200" },
+  "meta": { "paging": { "total": 1, "limit": 200 } }
+}

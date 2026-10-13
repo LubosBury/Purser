@@ -1,0 +1,13 @@
+{"data": {"type": "inAppPurchasePriceSchedules",
+  "relationships": {
+    "inAppPurchase": {"data": {"type": "inAppPurchases", "id": "{{IAP}}"}},
+    "baseTerritory": {"data": {"type": "territories", "id": "{{BASE}}"}},
+    "manualPrices": {"data": [{"type": "inAppPurchasePrices", "id": "${price-1}"},
+                              {"type": "inAppPurchasePrices", "id": "${price-2}"}]}}},
+ "included": [
+  {"type": "inAppPurchasePrices", "id": "${price-1}", "attributes": {"startDate": null}, "relationships": {
+     "inAppPurchaseV2": {"data": {"type": "inAppPurchases", "id": "{{IAP}}"}},
+     "inAppPurchasePricePoint": {"data": {"type": "inAppPurchasePricePoints", "id": "{{LP_1}}"}}}},
+  {"type": "inAppPurchasePrices", "id": "${price-2}", "attributes": {"startDate": null}, "relationships": {
+     "inAppPurchaseV2": {"data": {"type": "inAppPurchases", "id": "{{IAP}}"}},
+     "inAppPurchasePricePoint": {"data": {"type": "inAppPurchasePricePoints", "id": "{{LP_2}}"}}}}]}

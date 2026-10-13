@@ -1,0 +1,17 @@
+{
+  "data": [
+    {"type": "subscriptionPrices", "id": "price-b-jpn",
+     "attributes": {"startDate": null, "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "JPN"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-b-jpn-4000"}}}},
+    {"type": "subscriptionPrices", "id": "price-b-kor",
+     "attributes": {"startDate": null, "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "KOR"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-b-kor-44000"}}}}
+  ],
+  "included": [
+    {"type": "subscriptionPricePoints", "id": "pp-b-jpn-4000", "attributes": {"customerPrice": "4000", "proceeds": "3091"}},
+    {"type": "subscriptionPricePoints", "id": "pp-b-kor-44000", "attributes": {"customerPrice": "44000", "proceeds": "34000"}}
+  ],
+  "links": {"self": "https://api.example.invalid/v1/subscriptions/sub-b/prices?cursor=Mg&limit=200"}
+}

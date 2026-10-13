@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "storefronts": {
+    "Czechia": "CZE",
+    "Japan": "JPN",
+    "Korea, Republic of": "KOR",
+    "United States": "USA"
+  },
+  "aliases": {
+    "Corea": "KOR",
+    "South Korea": "KOR"
+  }
+}

@@ -1,0 +1,6 @@
+{"data": {"type": "subscriptionPrices",
+  "attributes": {"startDate": null},
+  "relationships": {
+    "subscription": {"data": {"type": "subscriptions", "id": "{{SUB}}"}},
+    "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "{{PP}}"}},
+    "territory": {"data": {"type": "territories", "id": "{{TERRITORY}}"}}}}}

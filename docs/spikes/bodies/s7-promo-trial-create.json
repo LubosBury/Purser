@@ -1,0 +1,15 @@
+{"data": {"type": "subscriptionPromotionalOffers",
+  "attributes": {"name": "{{NAME}}", "offerCode": "{{CODE}}", "offerMode": "FREE_TRIAL", "duration": "ONE_MONTH",
+                 "numberOfPeriods": 1, "targetSubscriptionPlanType": "UPFRONT"},
+  "relationships": {
+    "subscription": {"data": {"type": "subscriptions", "id": "{{SUB}}"}},
+    "prices": {"data": [{"type": "subscriptionPromotionalOfferPrices", "id": "${price-1}"},
+                        {"type": "subscriptionPromotionalOfferPrices", "id": "${price-2}"},
+                        {"type": "subscriptionPromotionalOfferPrices", "id": "${price-3}"}]}}},
+ "included": [
+  {"type": "subscriptionPromotionalOfferPrices", "id": "${price-1}", "relationships": {
+     "territory": {"data": {"type": "territories", "id": "USA"}}}},
+  {"type": "subscriptionPromotionalOfferPrices", "id": "${price-2}", "relationships": {
+     "territory": {"data": {"type": "territories", "id": "CZE"}}}},
+  {"type": "subscriptionPromotionalOfferPrices", "id": "${price-3}", "relationships": {
+     "territory": {"data": {"type": "territories", "id": "DEU"}}}}]}

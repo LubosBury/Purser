@@ -1,0 +1,7 @@
+{"data": {"type": "subscriptionIntroductoryOffers",
+  "attributes": {"offerMode": "{{MODE}}", "duration": "{{DURATION}}", "numberOfPeriods": {{PERIODS}}, "startDate": {{START}},
+                 "targetSubscriptionPlanType": "UPFRONT"},
+  "relationships": {
+    "subscription": {"data": {"type": "subscriptions", "id": "{{SUB}}"}},
+    "territory": {"data": {"type": "territories", "id": "{{TERRITORY}}"}},
+    "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "{{PP}}"}}}}}

@@ -1,0 +1,5 @@
+{"data": {"type": "subscriptionIntroductoryOffers",
+  "attributes": {"offerMode": "PAY_UP_FRONT", "duration": "ONE_MONTH", "numberOfPeriods": 1},
+  "relationships": {
+    "subscription": {"data": {"type": "subscriptions", "id": "{{SUB}}"}},
+    "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "{{PP}}"}}}}}

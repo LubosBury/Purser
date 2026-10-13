@@ -1,0 +1,19 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "subscriptionPromotionalOfferPrices", "id": "promo-1-usa",
+      "relationships": { "territory": { "data": { "type": "territories", "id": "USA" } },
+                         "subscriptionPricePoint": { "data": { "type": "subscriptionPricePoints", "id": "pp-USA-1499" } } } },
+    { "type": "subscriptionPromotionalOfferPrices", "id": "promo-1-cze",
+      "relationships": { "territory": { "data": { "type": "territories", "id": "CZE" } },
+                         "subscriptionPricePoint": { "data": { "type": "subscriptionPricePoints", "id": "pp-CZE-399" } } } }
+  ],
+  "included": [
+    { "type": "territories", "id": "USA", "attributes": { "currency": "USD" } },
+    { "type": "territories", "id": "CZE", "attributes": { "currency": "CZK" } },
+    { "type": "subscriptionPricePoints", "id": "pp-USA-1499", "attributes": { "customerPrice": "14.99", "proceeds": "12.74", "proceedsYear2": "12.74" } },
+    { "type": "subscriptionPricePoints", "id": "pp-CZE-399", "attributes": { "customerPrice": "399.0", "proceeds": "279.9", "proceedsYear2": "279.9" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptionPromotionalOffers/promo-1/prices?include=subscriptionPricePoint,territory&limit=200" },
+  "meta": { "paging": { "total": 2, "limit": 200 } }
+}

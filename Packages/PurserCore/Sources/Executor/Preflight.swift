@@ -1,0 +1,144 @@
+import Foundation
+import Domain
+import Store
+import ASCClient
+import Catalog
+import Policy
+import Planner
+
+package enum PreflightMode: Sendable { case firstStart, resume }
+
+/// A state change the resume preflight wants; the Executor persists it with an audit event.
+package struct ItemChange: Hashable, Sendable {
+    package var seq: Int
+    package var to: ItemState
+    package var ascId: String?
+    package var note: String
+    package init(seq: Int, to: ItemState, ascId: String?, note: String) { self.seq = seq; self.to = to; self.ascId = ascId; self.note = note }
+}
+
+package struct PreflightOutcome: Sendable {
+    package var liveApp: ASCApp
+    package var snapshot: CatalogSnapshot
+    package var productStates: [String: ProductState]
+    package var verdicts: [Verdict]
+    package var verdictHash: String
+    package var verdictHashChanged: Bool
+    package var level: ConfirmationLevel
+    package var planBlockers: [Verdict]
+    package var cellBlockers: [CellKey: [Verdict]]
+    package var staleCells: Set<CellKey>
+    package var itemChanges: [ItemChange]
+}
+
+/// Spec §6 step 2. Reads only; never writes to ASC or to the database.
+package struct Preflight: Sendable {
+    let store: PlanStore
+    let config: WorkspaceConfig
+    let reader: any ASCReading
+    let sync: SyncEngine
+    let catalog: CatalogStore
+    let policy: PolicyEngine
+    let now: @Sendable () -> Date
+
+    package init(store: PlanStore, config: WorkspaceConfig, reader: any ASCReading, sync: SyncEngine, catalog: CatalogStore,
+                 policy: PolicyEngine, now: @escaping @Sendable () -> Date) {
+        self.store = store; self.config = config; self.reader = reader; self.sync = sync
+        self.catalog = catalog; self.policy = policy; self.now = now
+    }
+
+    package func run(planId: String, mode: PreflightMode) async throws -> PreflightOutcome {
+        guard let plan = try store.plan(id: planId) else { throw ExecutorError.planNotFound(planId) }
+        let items = try store.items(planId: planId)
+
+        // A1: binding vs workspace config, then vs the live app.
+        guard plan.binding == PlanBinding(config: config) else { throw ExecutorError.bindingMismatch("config") }
+        let live = try await reader.app(id: plan.binding.appId)
+        guard live.id == plan.binding.appId, live.bundleId == plan.binding.bundleId else { throw ExecutorError.bindingMismatch("live") }
+
+        // A3: one applying plan per workspace.
+        if let other = try store.plans(states: [.applying]).first(where: { $0.id != planId }) {
+            throw ExecutorError.anotherPlanApplying(other.id)
+        }
+
+        // A4: targeted re-sync of affected products.
+        let products = Set(items.map { $0.item.cell.productAscId })
+        let result = try await sync.sync(trigger: .preflight, scope: .products(products))
+        guard result.status == .complete else { throw ExecutorError.syncIncomplete(result.status) }
+        guard let snapshot = try catalog.latestSnapshot() else { throw ExecutorError.noSnapshot }
+        let today = CalendarDate.today(now: now())
+
+        // A5: product states, stored into the plan by the Executor.
+        var states: [String: ProductState] = [:]
+        var verdicts: [Verdict] = []
+        for product in products.sorted() {
+            guard let state = snapshot.subscriptions[product]?.state ?? snapshot.iaps[product]?.state else {
+                verdicts.append(Verdict(rule: "A5", severity: .block(.plan), cell: nil, message: "Product \(product) was not found in App Store Connect"))
+                continue
+            }
+            states[product] = state
+            if !ProductState.writable.contains(state) {
+                verdicts.append(Verdict(rule: "A5", severity: .block(.plan), cell: nil,
+                                        message: "Product \(product) is \(state.rawValue); Purser writes only in APPROVED, READY_TO_SUBMIT, MISSING_METADATA, DEVELOPER_ACTION_NEEDED"))
+            }
+        }
+
+        // Re-policy over the items that are still to be written.
+        let remaining = items.filter { $0.state == .pending || $0.state == .inFlight }
+        var liveBinding = PlanBinding(config: config)
+        liveBinding.appId = live.id
+        liveBinding.bundleId = live.bundleId
+        let context = PolicyContext(snapshot: snapshot, config: config, today: today,
+                                    spec: try PlanSpecSummarizer.summary(specJSON: plan.specJSON, config: config,
+                                                                         unlockedCanaries: try LiveIntroCanaries.unlockedProducts(store: store)),
+                                    items: remaining.map(\.item), liveBinding: liveBinding, liveBundleId: live.bundleId,
+                                    otherApplyingPlanIds: [])
+        verdicts += policy.evaluate(context)
+        let verdictHash = PolicyEngine.hash(verdicts)
+        let level = max(PolicyEngine.confirmationLevel(for: verdicts, config: config), plan.confirmationLevel)
+        let remainingCells = Set(remaining.map { $0.item.cell })
+        var cellBlockers: [CellKey: [Verdict]] = [:]
+        for verdict in verdicts where verdict.severity == .block(.cell) {
+            if let cell = verdict.cell, remainingCells.contains(cell) { cellBlockers[cell, default: []].append(verdict) }
+        }
+
+        // Cells: 2a compares the first pending item; 2b walks each chain from its first unexecuted item.
+        var staleCells = Set<CellKey>()
+        var changes: [ItemChange] = []
+        for (cell, chain) in Dictionary(grouping: items, by: { $0.item.cell }) {
+            let ordered = chain.sorted { $0.item.seq < $1.item.seq }
+            let liveState = snapshot.cellState(cell, on: today)
+            switch mode {
+            case .firstStart:
+                guard let first = ordered.first(where: { $0.state == .pending }) else { continue }
+                if !Reconciler.matches(live: liveState, expected: first.item.before, today: today) { staleCells.insert(cell) }
+            case .resume:
+                var index = ordered.firstIndex { $0.state == .pending || $0.state == .inFlight }
+                while let i = index {
+                    let stored = ordered[i]
+                    index = nil
+                    if stored.state == .pending {
+                        if !Reconciler.matches(live: liveState, expected: stored.item.before, today: today) {
+                            changes.append(ItemChange(seq: stored.item.seq, to: .stale, ascId: nil, note: "preflight 2b: live state differs from before"))
+                        }
+                        continue
+                    }
+                    switch Reconciler.resolve(stored.item, live: liveState, today: today) {
+                    case let .targetFound(ascId):
+                        changes.append(ItemChange(seq: stored.item.seq, to: .done, ascId: ascId ?? stored.ascId, note: "preflight 2b: target found"))
+                        index = ordered[(i + 1)...].firstIndex { $0.state == .pending || $0.state == .inFlight }
+                    case .unchanged:
+                        changes.append(ItemChange(seq: stored.item.seq, to: .pending, ascId: nil, note: "preflight 2b: not applied, back to Pending"))
+                    case .diverged:
+                        changes.append(ItemChange(seq: stored.item.seq, to: .stale, ascId: nil, note: "preflight 2b: live state differs from before and target"))
+                    }
+                }
+            }
+        }
+
+        return PreflightOutcome(liveApp: live, snapshot: snapshot, productStates: states, verdicts: verdicts, verdictHash: verdictHash,
+                                verdictHashChanged: verdictHash != plan.verdictHash, level: level,
+                                planBlockers: verdicts.filter { $0.severity == .block(.plan) }, cellBlockers: cellBlockers,
+                                staleCells: staleCells, itemChanges: changes.sorted { $0.seq < $1.seq })
+    }
+}

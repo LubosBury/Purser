@@ -1,0 +1,19 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "subscriptionPricePoints", "id": "pp-CZE-299", "attributes": { "customerPrice": "299.0", "proceeds": "209.8", "proceedsYear2": "209.8" },
+      "relationships": { "territory": { "data": { "type": "territories", "id": "CZE" } } } },
+    { "type": "subscriptionPricePoints", "id": "pp-CZE-799", "attributes": { "customerPrice": "799.0", "proceeds": "560.5", "proceedsYear2": "560.5" },
+      "relationships": { "territory": { "data": { "type": "territories", "id": "CZE" } } } },
+    { "type": "subscriptionPricePoints", "id": "pp-USA-2999", "attributes": { "customerPrice": "29.99", "proceeds": "25.49", "proceedsYear2": "25.49" },
+      "relationships": { "territory": { "data": { "type": "territories", "id": "USA" } } } },
+    { "type": "subscriptionPricePoints", "id": "pp-USA-3499", "attributes": { "customerPrice": "34.99", "proceeds": "29.74", "proceedsYear2": "29.74" },
+      "relationships": { "territory": { "data": { "type": "territories", "id": "USA" } } } }
+  ],
+  "included": [
+    { "type": "territories", "id": "CZE", "attributes": { "currency": "CZK" } },
+    { "type": "territories", "id": "USA", "attributes": { "currency": "USD" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptions/6500000001/pricePoints?filter%5Bterritory%5D=CZE,USA&filter%5BplanType%5D=UPFRONT&include=territory&limit=8000" },
+  "meta": { "paging": { "total": 4, "limit": 8000 } }
+}

@@ -1,0 +1,6 @@
+{"data": {"type": "subscriptionPromotionalOffers", "id": "{{OFFER}}",
+  "relationships": {"prices": {"data": [{"type": "subscriptionPromotionalOfferPrices", "id": "${price-1}"}]}}},
+ "included": [
+  {"type": "subscriptionPromotionalOfferPrices", "id": "${price-1}", "relationships": {
+     "territory": {"data": {"type": "territories", "id": "USA"}},
+     "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "{{PP_USA}}"}}}}]}

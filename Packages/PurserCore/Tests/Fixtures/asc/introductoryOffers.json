@@ -1,0 +1,29 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "subscriptionIntroductoryOffers", "id": "intro-usa-1",
+      "attributes": { "startDate": null, "endDate": null, "duration": "ONE_WEEK", "offerMode": "FREE_TRIAL",
+                      "numberOfPeriods": 1, "targetSubscriptionPlanType": "UPFRONT" },
+      "relationships": { "territory": { "data": { "type": "territories", "id": "USA" } },
+                         "subscriptionPricePoint": { "data": null } } },
+    { "type": "subscriptionIntroductoryOffers", "id": "intro-cze-1",
+      "attributes": { "startDate": "2026-01-01", "endDate": "2026-12-31", "duration": "THREE_MONTHS", "offerMode": "PAY_UP_FRONT",
+                      "numberOfPeriods": 1 },
+      "relationships": { "territory": { "data": { "type": "territories", "id": "CZE" } },
+                         "subscriptionPricePoint": { "data": { "type": "subscriptionPricePoints", "id": "pp-CZE-299" } } } },
+    { "type": "subscriptionIntroductoryOffers", "id": "intro-deu-1",
+      "attributes": { "startDate": "2026-11-01", "endDate": null, "duration": "ONE_YEAR", "offerMode": "PAY_AS_YOU_GO",
+                      "numberOfPeriods": 1, "targetSubscriptionPlanType": "UPFRONT" },
+      "relationships": { "territory": { "data": { "type": "territories", "id": "DEU" } },
+                         "subscriptionPricePoint": { "data": { "type": "subscriptionPricePoints", "id": "pp-DEU-1999" } } } }
+  ],
+  "included": [
+    { "type": "territories", "id": "USA", "attributes": { "currency": "USD" } },
+    { "type": "territories", "id": "CZE", "attributes": { "currency": "CZK" } },
+    { "type": "territories", "id": "DEU", "attributes": { "currency": "EUR" } },
+    { "type": "subscriptionPricePoints", "id": "pp-CZE-299", "attributes": { "customerPrice": "299.0", "proceeds": "209.8", "proceedsYear2": "209.8" } },
+    { "type": "subscriptionPricePoints", "id": "pp-DEU-1999", "attributes": { "customerPrice": "19.99", "proceeds": "14.28", "proceedsYear2": "14.28" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptions/6500000001/introductoryOffers?include=subscriptionPricePoint,territory&limit=200" },
+  "meta": { "paging": { "total": 3, "limit": 200 } }
+}

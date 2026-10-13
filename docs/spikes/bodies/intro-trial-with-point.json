@@ -1,0 +1,7 @@
+{"data": {"type": "subscriptionIntroductoryOffers",
+  "attributes": {"offerMode": "FREE_TRIAL", "duration": "ONE_WEEK", "numberOfPeriods": 1, "startDate": {{START}},
+                 "targetSubscriptionPlanType": "UPFRONT"},
+  "relationships": {
+    "subscription": {"data": {"type": "subscriptions", "id": "{{SUB}}"}},
+    "territory": {"data": {"type": "territories", "id": "{{TERRITORY}}"}},
+    "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "{{PP}}"}}}}}

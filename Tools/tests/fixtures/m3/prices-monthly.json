@@ -1,0 +1,27 @@
+{
+  "data": [
+    {"type": "subscriptionPrices", "id": "price-m-usa",
+     "attributes": {"startDate": null, "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "USA"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-m-usa-499"}}}},
+    {"type": "subscriptionPrices", "id": "price-m-cze",
+     "attributes": {"startDate": null, "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "CZE"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-m-cze-129"}}}},
+    {"type": "subscriptionPrices", "id": "price-m-jpn",
+     "attributes": {"startDate": null, "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "JPN"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-m-jpn-500"}}}},
+    {"type": "subscriptionPrices", "id": "price-m-kor",
+     "attributes": {"startDate": null, "preserved": false},
+     "relationships": {"territory": {"data": {"type": "territories", "id": "KOR"}},
+                       "subscriptionPricePoint": {"data": {"type": "subscriptionPricePoints", "id": "pp-m-kor-5500"}}}}
+  ],
+  "included": [
+    {"type": "subscriptionPricePoints", "id": "pp-m-usa-499", "attributes": {"customerPrice": "4.99", "proceeds": "4.24"}},
+    {"type": "subscriptionPricePoints", "id": "pp-m-cze-129", "attributes": {"customerPrice": "129", "proceeds": "90.66"}},
+    {"type": "subscriptionPricePoints", "id": "pp-m-jpn-500", "attributes": {"customerPrice": "500", "proceeds": "386"}},
+    {"type": "subscriptionPricePoints", "id": "pp-m-kor-5500", "attributes": {"customerPrice": "5500", "proceeds": "4250"}}
+  ],
+  "links": {"self": "https://api.example.invalid/v1/subscriptions/sub-m/prices"}
+}

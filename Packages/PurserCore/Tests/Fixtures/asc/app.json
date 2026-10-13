@@ -1,0 +1,10 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": {
+    "type": "apps",
+    "id": "6400000001",
+    "attributes": { "name": "Fruit Journal", "bundleId": "com.example.fruitjournal", "sku": "FRUIT001", "primaryLocale": "en-US" },
+    "links": { "self": "https://api.appstoreconnect.apple.com/v1/apps/6400000001" }
+  },
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/apps/6400000001" }
+}

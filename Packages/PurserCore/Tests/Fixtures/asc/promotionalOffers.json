@@ -1,0 +1,10 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "subscriptionPromotionalOffers", "id": "promo-1",
+      "attributes": { "duration": "THREE_MONTHS", "name": "Winback 2026", "numberOfPeriods": 1, "offerCode": "WINBACK_v1",
+                      "offerMode": "PAY_UP_FRONT", "targetSubscriptionPlanType": "UPFRONT" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptions/6500000001/promotionalOffers?limit=200" },
+  "meta": { "paging": { "total": 1, "limit": 200 } }
+}

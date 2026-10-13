@@ -1,0 +1,9 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "subscriptionPlanAvailabilities", "id": "plan-6500000001-upfront",
+      "attributes": { "availableInNewTerritories": false, "planType": "UPFRONT" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptions/6500000001/planAvailabilities?limit=200" },
+  "meta": { "paging": { "total": 1, "limit": 200 } }
+}

@@ -1,0 +1,21 @@
+{
+  "x-purser-fixture": "hand-made in M0 from the OpenAPI 4.5.1 schema; replace with recorded fixture in S0",
+  "data": [
+    { "type": "inAppPurchasePrices", "id": "iap-price-usa",
+      "attributes": { "startDate": null, "endDate": null, "manual": true },
+      "relationships": { "inAppPurchasePricePoint": { "data": { "type": "inAppPurchasePricePoints", "id": "iap-USA-4999" } },
+                         "territory": { "data": { "type": "territories", "id": "USA" } } } },
+    { "type": "inAppPurchasePrices", "id": "iap-price-cze",
+      "attributes": { "startDate": "2026-11-01", "endDate": null, "manual": true },
+      "relationships": { "inAppPurchasePricePoint": { "data": { "type": "inAppPurchasePricePoints", "id": "iap-CZE-1290" } },
+                         "territory": { "data": { "type": "territories", "id": "CZE" } } } }
+  ],
+  "included": [
+    { "type": "inAppPurchasePricePoints", "id": "iap-USA-4999", "attributes": { "customerPrice": "49.99", "proceeds": "42.49" } },
+    { "type": "inAppPurchasePricePoints", "id": "iap-CZE-1290", "attributes": { "customerPrice": "1290.0", "proceeds": "905.0" } },
+    { "type": "territories", "id": "USA", "attributes": { "currency": "USD" } },
+    { "type": "territories", "id": "CZE", "attributes": { "currency": "CZK" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/6600000001/manualPrices?include=inAppPurchasePricePoint,territory&limit=200" },
+  "meta": { "paging": { "total": 2, "limit": 200 } }
+}
