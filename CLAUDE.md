@@ -17,8 +17,13 @@ Native macOS app (SwiftUI) for reviewing and applying price changes in App Store
 - Only code in `Packages/PurserCore/Sources/Executor` writes to App Store Connect: `Executor` (plans), `ProductCreator` (groups, subscriptions, non-consumables) and the DEBUG `SpikeProbe`. `ArchitectureTests` enforces it, and that a write-capable client (`readOnly: false`) is built only in `App/Session/WorkspaceSession+Apply.swift` and `WorkspaceSession+SpikeProbe.swift`.
 - `AppGuard` refuses anything outside the workspace app; a new endpoint needs its rule and tests there first.
 - Every write is audited before it leaves (`httpSent`) and after it returns (`httpReceived`), asks for Touch ID, and is never retried automatically.
+- The one way around Touch ID is the MCP bridge (`docs/runbooks/mcp.md`): `MCPToolRouter` hands `MCPWriteGate` to an apply, a resume or a product creation only while the owner's setting allows it and after the call is in the audit (`mcpToolCalled`). `ArchitectureTests` enforces that nothing else builds that gate. The confirmation rules (`ConfirmationValidator`) are not relaxed for MCP.
 - The ASC API has no sandbox. Tests run against `FakeASC`; its behaviour is an assumption until a spike in `docs/spikes/` confirms it. Live trials go only to the never-submitted "Purser Spike" group.
 - The Swift module for Keychain, JWT and Touch ID is `PurserSecurity` (folder `Sources/Security`); a target named `Security` breaks the build.
+
+## MCP bridge
+
+`MCPHelper/` builds `purser-mcp` (in the app's `Contents/MacOS`), the stdio server an MCP client starts; it forwards tool calls over a Unix socket in the App Group container to `App/MCP/MCPToolRouter.swift`. A tool is declared in `MCPBridge/ToolCatalog.swift` (name, schema, access) and implemented in the router; argument parsing and JSON rendering live in `Sources/MCPTools` and are tested there. The router goes through `WorkspaceSession`, `PlanningModel` and `ApplyController`; it never builds an ASC client.
 
 ## Layout gotcha
 

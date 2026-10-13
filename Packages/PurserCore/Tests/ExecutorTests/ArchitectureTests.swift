@@ -18,7 +18,11 @@ private let writeCallPattern = #"(?:try\s+)?await\s+[\w.?!\[\]()]*\.(createRegul
 private let writeClientFiles = ["App/Session/WorkspaceSession+Apply.swift", "App/Session/WorkspaceSession+SpikeProbe.swift",
                                 "App/Session/WorkspaceSession+ApprovedProbe.swift"]
 
-private let scannedRoots = [packageRoot.appending(path: "Sources"), repoRoot.appending(path: "App"), repoRoot.appending(path: "LoginItem")]
+private let scannedRoots = [packageRoot.appending(path: "Sources"), repoRoot.appending(path: "App"), repoRoot.appending(path: "LoginItem"),
+                            repoRoot.appending(path: "MCPHelper")]
+
+/// The only file that may build the gate that stands in for Touch ID on writes asked for over MCP.
+private let mcpGateFile = "App/MCP/MCPToolRouter.swift"
 
 private func swiftFiles(under directory: URL) -> [URL] {
     guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) else { return [] }
@@ -74,6 +78,29 @@ struct ArchitectureTests {
         }
         let foreign = hits.filter { hit in !writeClientFiles.contains { hit.hasPrefix($0 + ":") } }
         #expect(foreign.isEmpty, "write-capable client built outside \(writeClientFiles): \(foreign)")
+    }
+
+    @Test func theGateThatSkipsTouchIDIsBuiltOnlyByTheMCPRouter() throws {
+        var hits: [String] = []
+        for root in scannedRoots {
+            for file in swiftFiles(under: root) {
+                for line in try codeLines(file) where line.text.contains("MCPWriteGate()") || line.text.contains("AlwaysAllowGate()") {
+                    hits.append("\(relative(file)):\(line.number)")
+                }
+            }
+        }
+        #expect(!hits.isEmpty, "the MCP router no longer builds its gate; update this test")
+        let foreign = hits.filter { !$0.hasPrefix(mcpGateFile + ":") }
+        #expect(foreign.isEmpty, "a gate that skips Touch ID is built outside \(mcpGateFile): \(foreign)")
+    }
+
+    @Test func theMCPRouterAuditsAndChecksTheSettingBeforeItRunsAWrite() throws {
+        let source = try String(contentsOf: repoRoot.appending(path: mcpGateFile), encoding: .utf8)
+        let setting = try #require(source.range(of: "definition.access == .ascWrite, !host.writesWithoutTouchID"))
+        let audit = try #require(source.range(of: "session.audit.append(.mcpToolCalled"))
+        let run = try #require(source.range(of: "try await run(name, request.arguments, session)"))
+        #expect(setting.lowerBound < audit.lowerBound)
+        #expect(audit.lowerBound < run.lowerBound)
     }
 
     @Test func auditExportAndDatabaseNeverContainTokens() async throws {

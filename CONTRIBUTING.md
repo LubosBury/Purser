@@ -4,7 +4,7 @@ Thanks for looking into Purser. It is maintained by one person in spare time, so
 
 ## Ground rules
 
-- **Write safety comes first.** Only the code in `Packages/PurserCore/Sources/Executor` writes to App Store Connect, every write is audited before it leaves and after it returns, asks for Touch ID and is never retried automatically. `ArchitectureTests` enforces part of this. A change that weakens any of it will not be merged.
+- **Write safety comes first.** Only the code in `Packages/PurserCore/Sources/Executor` writes to App Store Connect, every write is audited before it leaves and after it returns, asks for Touch ID and is never retried automatically. The one opt-in exception to Touch ID is the MCP bridge ([docs/runbooks/mcp.md](docs/runbooks/mcp.md)). `ArchitectureTests` enforces part of this. A change that weakens any of it will not be merged.
 - **No live trials against real apps.** The App Store Connect API has no sandbox. Tests run against `FakeASC`. Never put real keys, tokens, product ids or prices in code, fixtures, issues or pull requests.
 - **A new App Store Connect path** is added to [docs/research/asc-api-paths.md](docs/research/asc-api-paths.md) first, gets its `AppGuard` rule and tests, and only then is called.
 - **User-facing text is English**, written as plain string literals.

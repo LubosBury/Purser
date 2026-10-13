@@ -18,6 +18,8 @@ let package = Package(
         .library(name: "Planner", targets: ["Planner"]),
         .library(name: "Executor", targets: ["Executor"]),
         .library(name: "Background", targets: ["Background"]),
+        .library(name: "MCPBridge", targets: ["MCPBridge"]),
+        .library(name: "MCPTools", targets: ["MCPTools"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
@@ -36,6 +38,9 @@ let package = Package(
         .target(name: "Planner", dependencies: ["Policy", "Catalog", "Importer", "Store", "Audit", "ASCClient", "Domain", grdb]),
         .target(name: "Executor", dependencies: ["Planner", "Policy", "Catalog", "Importer", "ASCClient", "Audit", "PurserSecurity", "Store", "Domain", grdb]),
         .target(name: "Background", dependencies: ["Domain", "Store", "Audit", "PurserSecurity", "ASCClient", "Catalog", "Policy", grdb]),
+        // MCP over stdio and the socket between the purser-mcp helper and the app. Foundation only: the helper links it.
+        .target(name: "MCPBridge"),
+        .target(name: "MCPTools", dependencies: ["MCPBridge", "Executor", "Planner", "Policy", "Catalog", "Importer", "Store", "Domain"]),
         .target(
             name: "PurserTestSupport",
             dependencies: ["Domain", "Store", "Audit", "PurserSecurity", "ASCClient", "Catalog", "Importer", "Policy", "Planner", "Executor", "Background", grdb],
@@ -53,5 +58,8 @@ let package = Package(
         .testTarget(name: "ExecutorTests", dependencies: ["Executor", "PurserTestSupport", "Planner", "Policy", "Catalog", "Importer",
                                                           "Store", "Audit", "ASCClient", "PurserSecurity", "Domain", grdb]),
         .testTarget(name: "BackgroundTests", dependencies: ["Background", "PurserTestSupport", grdb]),
+        .testTarget(name: "MCPBridgeTests", dependencies: ["MCPBridge"]),
+        .testTarget(name: "MCPToolsTests", dependencies: ["MCPTools", "MCPBridge", "Executor", "Planner", "Policy", "Catalog", "Importer", "Store",
+                                                          "Domain", "PurserTestSupport", grdb]),
     ]
 )

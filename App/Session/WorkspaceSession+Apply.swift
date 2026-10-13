@@ -35,14 +35,18 @@ extension WorkspaceSession {
     // MARK: Apply, resume, pause, abort (K11)
 
     /// Apply with a write-capable client that exists only for this call (spec §4: write token only after Touch ID).
+    /// `gate` nil = Touch ID of this Mac. The only other gate is MCPWriteGate, for a call that came over the MCP
+    /// bridge while the owner allows writes without Touch ID in Settings.
     func apply(planId: String, confirm: @escaping @Sendable (ConfirmationRequest) async -> ConfirmationResponse,
+               gate: (any BiometricGate)? = nil,
                onEvent: @escaping @MainActor (ExecutorEvent) -> Void) async throws -> PlanState {
-        try await withWriteExecutor(onEvent: onEvent) { try await $0.apply(planId: planId, confirm: confirm) }
+        try await withWriteExecutor(gate: gate, onEvent: onEvent) { try await $0.apply(planId: planId, confirm: confirm) }
     }
 
     func resume(planId: String, confirm: @escaping @Sendable (ConfirmationRequest) async -> ConfirmationResponse,
+                gate: (any BiometricGate)? = nil,
                 onEvent: @escaping @MainActor (ExecutorEvent) -> Void) async throws -> PlanState {
-        try await withWriteExecutor(onEvent: onEvent) { try await $0.resume(planId: planId, confirm: confirm) }
+        try await withWriteExecutor(gate: gate, onEvent: onEvent) { try await $0.resume(planId: planId, confirm: confirm) }
     }
 
     func pause(planId: String, reason: PauseReason) async {
@@ -164,10 +168,10 @@ extension WorkspaceSession {
 
     // MARK: The write-capable executor
 
-    private func withWriteExecutor(onEvent: @escaping @MainActor (ExecutorEvent) -> Void,
+    private func withWriteExecutor(gate: (any BiometricGate)?, onEvent: @escaping @MainActor (ExecutorEvent) -> Void,
                                    _ body: (Executor) async throws -> PlanState) async throws -> PlanState {
         guard activeExecutor == nil else { throw WorkspaceSessionError.applyInProgress }
-        let executor = try await makeWriteExecutor()
+        let executor = try await makeWriteExecutor(gate: gate ?? biometricGate)
         guard activeExecutor == nil else { throw WorkspaceSessionError.applyInProgress }
         activeExecutor = executor
         let listener = Task { @MainActor in
@@ -182,7 +186,7 @@ extension WorkspaceSession {
     }
 
     /// The only place in the app that builds a write-capable ASC client for plans (architecture test, Task 2.10).
-    private func makeWriteExecutor() async throws -> Executor {
+    private func makeWriteExecutor(gate: any BiometricGate) async throws -> Executor {
         guard let readClient, let syncEngine else { throw WorkspaceSessionError.syncUnavailable }
         guard let pem = try secretStore.get(account: SecretAccount.ascPrivateKey(config.id)) else { throw WorkspaceSessionError.missingKey }
         let identity: JWTIdentity = config.keyKind == .team ? .team(issuerId: config.issuerId ?? "") : .individual
@@ -192,7 +196,7 @@ extension WorkspaceSession {
         let executor = Executor(database: database, config: config, reader: readClient, writer: LiveASCClient(http: http),
                                 sync: syncEngine, catalog: catalogStore,
                                 policy: PolicyEngine(invariants: PolicyEngine.invariants(for: config)), audit: audit,
-                                gate: biometricGate, budget: budget, now: { Date() }, sleep: { try await Task.sleep(for: $0) })
+                                gate: gate, budget: budget, now: { Date() }, sleep: { try await Task.sleep(for: $0) })
         #if DEBUG
         await DrillSupport.install(on: executor)
         #endif
@@ -202,8 +206,9 @@ extension WorkspaceSession {
     // MARK: Product creation
 
     /// A ProductCreator with its own write-capable client for one run of the "New products" sheet. The session never
-    /// stores it; the key is read from the Keychain now and the creator asks for Touch ID before it writes.
-    func makeProductCreator() throws -> ProductCreator {
+    /// stores it; the key is read from the Keychain now and the creator asks for Touch ID before it writes
+    /// (`gate` nil; see apply(planId:confirm:gate:onEvent:) for the one other gate).
+    func makeProductCreator(gate: (any BiometricGate)? = nil) throws -> ProductCreator {
         guard activeExecutor == nil else { throw WorkspaceSessionError.applyInProgress }
         guard let readClient else { throw WorkspaceSessionError.syncUnavailable }
         guard let pem = try secretStore.get(account: SecretAccount.ascPrivateKey(config.id)) else { throw WorkspaceSessionError.missingKey }
@@ -211,7 +216,7 @@ extension WorkspaceSession {
         let signer = try JWTSigner(keyId: config.keyId, identity: identity, privateKeyPEM: String(decoding: pem, as: UTF8.self))
         let http = ASCHTTPClient(transport: URLSessionTransport(), signer: signer, budget: budget, appGuard: appGuard,
                                  readOnly: false, now: { Date() })
-        return ProductCreator(config: config, http: http, reader: readClient, audit: audit, budget: budget, gate: biometricGate)
+        return ProductCreator(config: config, http: http, reader: readClient, audit: audit, budget: budget, gate: gate ?? biometricGate)
     }
 
     private static func writeTransport() -> any HTTPTransport {

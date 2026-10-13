@@ -173,6 +173,17 @@ final class PlanningModel {
         }
     }
 
+    /// The same import for a table that arrives as text (the MCP bridge; the sandbox keeps the app from the file).
+    func importCSV(text: String) async -> ImportOutcome? {
+        guard let mapping = config.importMapping else { errorMessage = "The workspace has no import mapping."; return nil }
+        do {
+            return try await runImport(CSVTableSource(data: Data(text.utf8)), mapping: mapping, emptyWrittenCells: .skip)
+        } catch {
+            errorMessage = "The CSV cannot be loaded: \(error)"
+            return nil
+        }
+    }
+
     func importGoogleSheet() async -> ImportOutcome? {
         guard let mapping = config.importMapping, case let .googleSheet(spreadsheetId, range) = mapping.source else {
             errorMessage = "The import mapping has no Google Sheet source."
@@ -239,9 +250,11 @@ final class PlanningModel {
                                     mappingVersion: version, withoutPrice: withoutPrice, skippedTerritories: template.skipped)
     }
 
-    private func runImport(_ source: any TableSource, mapping: ImportMapping) async throws -> ImportOutcome {
+    private func runImport(_ source: any TableSource, mapping: ImportMapping,
+                           emptyWrittenCells: EmptyWrittenCells = .refuse) async throws -> ImportOutcome {
         let importer = Importer(names: names)
-        let (table, verdicts) = try await importer.importTable(source: source, mapping: mapping, territories: snapshot?.territories ?? [:])
+        let (table, verdicts) = try await importer.importTable(source: source, mapping: mapping, territories: snapshot?.territories ?? [:],
+                                                               emptyWrittenCells: emptyWrittenCells)
         return ImportOutcome(table: table, verdicts: verdicts)
     }
 

@@ -3,8 +3,15 @@ import SwiftUI
 @main
 struct PurserApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel(environment: .live())
+    @State private var model: AppModel
     @State private var backgroundSync = BackgroundSyncCoordinator()
+    @State private var mcpBridge: MCPBridgeHost
+
+    init() {
+        let model = AppModel(environment: .live())
+        _model = State(initialValue: model)
+        _mcpBridge = State(initialValue: MCPBridgeHost(model: model))
+    }
 
     var body: some Scene {
         WindowGroup("Purser Pricing") {
@@ -14,6 +21,7 @@ struct PurserApp: App {
                 .preferredColorScheme(.dark)
                 .task { await model.launch() }
                 .task { backgroundSync.refresh() }
+                .task { mcpBridge.refresh() }
         }
         .commands {
             CommandGroup(after: .appInfo) {
@@ -25,7 +33,7 @@ struct PurserApp: App {
             #endif
         }
         Settings {
-            AppSettingsView(coordinator: backgroundSync)
+            AppSettingsView(coordinator: backgroundSync, mcpBridge: mcpBridge)
                 .environment(model)
         }
         #if DEBUG

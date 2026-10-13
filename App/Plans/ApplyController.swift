@@ -3,6 +3,14 @@ import Foundation
 import Observation
 import Domain
 import Executor
+import PurserSecurity
+
+/// An apply or resume started without the owner at the Mac: who answers the confirmation and which gate stands in
+/// for Touch ID.
+struct DelegatedApply: Sendable {
+    let confirm: @Sendable (ConfirmationRequest) async -> ConfirmationResponse
+    let gate: any BiometricGate
+}
 
 /// Drives apply/resume/pause/abort and the plan actions of one workspace and mirrors executor events for the UI.
 /// Owned by WorkspaceSession (one per session), so view re-renders and lock/unlock never create a second controller.
@@ -55,12 +63,18 @@ final class ApplyController {
         }
     }
 
-    func apply(planId: String) {
-        start(planId) { session, confirm, onEvent in try await session.apply(planId: planId, confirm: confirm, onEvent: onEvent) }
+    /// `delegated` nil = the owner at the Mac: the confirmation sheet and Touch ID. A call over the MCP bridge brings
+    /// its own confirmation answer and gate (MCPToolRouter).
+    func apply(planId: String, delegated: DelegatedApply? = nil) {
+        start(planId, delegated) { session, confirm, gate, onEvent in
+            try await session.apply(planId: planId, confirm: confirm, gate: gate, onEvent: onEvent)
+        }
     }
 
-    func resume(planId: String) {
-        start(planId) { session, confirm, onEvent in try await session.resume(planId: planId, confirm: confirm, onEvent: onEvent) }
+    func resume(planId: String, delegated: DelegatedApply? = nil) {
+        start(planId, delegated) { session, confirm, gate, onEvent in
+            try await session.resume(planId: planId, confirm: confirm, gate: gate, onEvent: onEvent)
+        }
     }
 
     func pause() {
@@ -129,9 +143,10 @@ final class ApplyController {
 
     private typealias Operation = (WorkspaceSession,
                                    @escaping @Sendable (ConfirmationRequest) async -> ConfirmationResponse,
+                                   (any BiometricGate)?,
                                    @escaping @MainActor (ExecutorEvent) -> Void) async throws -> PlanState
 
-    private func start(_ planId: String, _ operation: @escaping Operation) {
+    private func start(_ planId: String, _ delegated: DelegatedApply?, _ operation: @escaping Operation) {
         guard !isRunning else { return }
         phase = .running(planId: planId)
         done = 0
@@ -145,8 +160,10 @@ final class ApplyController {
             guard let self else { return }
             defer { self.keepAwake.end() }
             let broker = self.broker
+            let askOwner: @Sendable (ConfirmationRequest) async -> ConfirmationResponse = { request in await broker.ask(request) }
+            let confirm = delegated?.confirm ?? askOwner
             do {
-                let state = try await operation(self.session, { request in await broker.ask(request) }, { event in self.handle(event) })
+                let state = try await operation(self.session, confirm, delegated?.gate, { event in self.handle(event) })
                 self.settle(planId: planId, returned: state)
             } catch {
                 self.phase = .failed(planId: planId, message: String(describing: error))

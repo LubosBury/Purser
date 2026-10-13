@@ -3,6 +3,8 @@ import SwiftUI
 
 struct AppSettingsView: View {
     @Bindable var coordinator: BackgroundSyncCoordinator
+    var mcpBridge: MCPBridgeHost
+    @State private var mcpMessage: String?
     @Environment(AppModel.self) private var model
     /// The edited name; nil while the field shows the saved one.
     @State private var ownerDraft: String?
@@ -14,6 +16,7 @@ struct AppSettingsView: View {
         VStack(spacing: PurserSpacing.space4) {
             ownerPanel
             syncPanel
+            mcpPanel
             actionBar
         }
         // Full height even while a message is shown under the name; otherwise the window squeezes the last row.
@@ -91,6 +94,43 @@ struct AppSettingsView: View {
         ownerDraft = nil
         ownerMessage = nil
         window?.close()
+    }
+
+    private var mcpPanel: some View {
+        PurserSettingsPanel("Claude (MCP)",
+                            hint: "Lets an MCP client on this Mac, such as Claude Desktop, read the open workspace and prepare plans while Purser is unlocked. Every call that changes something is in the audit.") {
+            VStack(alignment: .leading, spacing: PurserSpacing.space2) {
+                Toggle("Let Claude control Purser", isOn: Binding(
+                    get: { mcpBridge.isEnabled },
+                    set: { mcpBridge.setEnabled($0) }))
+                    .toggleStyle(.checkbox)
+                Toggle("Apply plans and create products without Touch ID", isOn: Binding(
+                    get: { mcpBridge.writesWithoutTouchID },
+                    set: { allowed in Task { mcpMessage = await mcpBridge.setWritesWithoutTouchID(allowed) } }))
+                    .toggleStyle(.checkbox)
+                    .disabled(!mcpBridge.isEnabled)
+                if mcpBridge.writesWithoutTouchID {
+                    HStack(alignment: .firstTextBaseline, spacing: PurserSpacing.space2) {
+                        PurserBadge(text: "WARN", kind: .warning)
+                        Text("Claude can change live prices without you confirming at this Mac. Price changes of approved products take effect without App Review.")
+                            .font(PurserFont.callout)
+                            .foregroundStyle(PurserColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if let mcpMessage { PlanFormMessage(mcpMessage, kind: .danger) }
+            }
+            Divider().overlay(PurserColor.separator)
+            VStack(alignment: .leading, spacing: PurserSpacing.space2) {
+                PurserKeyValue(label: "Bridge", value: mcpBridge.statusText)
+                PurserKeyValue(label: "Command", value: MCPBridgeHost.helperPath, isIdentifier: true)
+                Button("Copy the Claude Desktop configuration") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(MCPBridgeHost.clientConfiguration, forType: .string)
+                }
+                .purserButton()
+            }
+        }
     }
 
     private var syncPanel: some View {

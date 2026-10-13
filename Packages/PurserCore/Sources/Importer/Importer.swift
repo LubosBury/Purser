@@ -2,20 +2,29 @@ import CryptoKit
 import Foundation
 import Domain
 
+/// What an empty cell in a written column means.
+public enum EmptyWrittenCells: Sendable {
+    /// Rule S3 as the app applies it: the table is refused.
+    case refuse
+    /// The cell carries no value and the table is read; a WARN verdict lists the cells. For a table a program made,
+    /// where a territory without a price is normal (the MCP bridge).
+    case skip
+}
+
 public struct Importer: Sendable {
     private let names: TerritoryNameMap
 
     public init(names: TerritoryNameMap) { self.names = names }
 
     /// Applies rules S1-S3; returns the table and the verdicts (block verdicts mean the table must not be planned).
-    public func importTable(source: any TableSource, mapping: ImportMapping,
-                            territories: [TerritoryCode: CurrencyCode]) async throws -> (ImportedTable, [Verdict]) {
+    public func importTable(source: any TableSource, mapping: ImportMapping, territories: [TerritoryCode: CurrencyCode],
+                            emptyWrittenCells: EmptyWrittenCells = .refuse) async throws -> (ImportedTable, [Verdict]) {
         let raw = try await source.fetchRows()
-        return Self.process(raw: raw, mapping: mapping, territories: territories, names: names)
+        return Self.process(raw: raw, mapping: mapping, territories: territories, names: names, emptyWrittenCells: emptyWrittenCells)
     }
 
     static func process(raw: [[String]], mapping: ImportMapping, territories: [TerritoryCode: CurrencyCode],
-                        names: TerritoryNameMap) -> (ImportedTable, [Verdict]) {
+                        names: TerritoryNameMap, emptyWrittenCells: EmptyWrittenCells = .refuse) -> (ImportedTable, [Verdict]) {
         var verdicts: [Verdict] = []
         let sha = sha256(of: raw)
 
@@ -39,6 +48,7 @@ public struct Importer: Sendable {
         var unknown: [String] = []
         var currencyIssues: [String] = []
         var valueIssues: [String] = []
+        var emptyCells: [String] = []
         var rowsByCode: [TerritoryCode: [Int]] = [:]
         var rows: [ImportedRow] = []
 
@@ -72,6 +82,10 @@ public struct Importer: Sendable {
                 let text = cell(columnIndex)
                 let column = target.column.uppercased()
                 if text.isEmpty && !target.writes { continue }
+                if text.isEmpty && emptyWrittenCells == .skip {
+                    emptyCells.append("row \(rowNumber) column \(column)")
+                    continue
+                }
                 if let value = parse(text, kind: target.kind) {
                     values[column] = value
                 } else {
@@ -94,6 +108,10 @@ public struct Importer: Sendable {
         }
         if !valueIssues.isEmpty {
             verdicts.append(block("S3", "The value is not an unformatted number > 0 (for a trial, a duration or a number of days): \(list(valueIssues))."))
+        }
+        if !emptyCells.isEmpty {
+            verdicts.append(Verdict(rule: "S3", severity: .warn, cell: nil,
+                                    message: "\(emptyCells.count) empty cells in written columns carry no value: \(list(emptyCells))."))
         }
         return (ImportedTable(mappingVersion: mapping.version, sha256: sha, rows: rows, rawRows: raw), verdicts)
     }

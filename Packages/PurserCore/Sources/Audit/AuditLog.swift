@@ -9,6 +9,8 @@ public enum AuditEventType: String, Codable, Sendable {
     case planCreated, planStateChanged, confirmation, warningShown
     case httpSent, httpReceived, itemStateChanged, verify
     case exportPerformed, chainHeadPublished
+    /// A tool call that came over the MCP bridge and changes something (a draft, an ack, a sync, a write to ASC).
+    case mcpToolCalled
 }
 
 public struct AuditEvent: Hashable, Sendable, Codable {

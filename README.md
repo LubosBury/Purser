@@ -18,13 +18,23 @@ Download the latest notarized build from the [Releases](../../releases) page, mo
 
 Then add your app as a workspace: [docs/runbooks/new-workspace.md](docs/runbooks/new-workspace.md).
 
+## Claude Desktop (MCP)
+
+Purser can be driven from an MCP client on the same Mac, such as Claude Desktop: reading prices, findings and plans, importing a price table, building Draft plans and, if you allow it, applying them. It is off by default.
+
+1. Purser › Settings › Claude (MCP): turn on **Let Claude control Purser**.
+2. Press **Copy the Claude Desktop configuration** and merge the `purser` entry into `~/Library/Application Support/Claude/claude_desktop_config.json`.
+3. Restart Claude Desktop and ask it for the Purser status.
+
+A second switch, **Apply plans and create products without Touch ID**, lets Claude write to App Store Connect. Read [docs/runbooks/mcp.md](docs/runbooks/mcp.md) first: it lists every tool and what that switch gives up.
+
 ## Name
 
 The app shows itself to the user as **Purser Pricing** (the name "Purser" is taken in the App Store): the bundle `Purser Pricing.app`, the menu bar, the window title, the record in App Store Connect. The project, the repo, the modules, the process (`Purser`) and the bundle ID (`com.lubosbury.purser`) keep the short name Purser.
 
 ## Principles
 
-- The ASC key (`.p8`) never leaves the Mac: it lives only in the Keychain (`ThisDeviceOnly`); Touch ID at launch and before every write.
+- The ASC key (`.p8`) never leaves the Mac: it lives only in the Keychain (`ThisDeviceOnly`); Touch ID at launch and before every write. The one exception is opt-in: writes asked for over the [MCP bridge](docs/runbooks/mcp.md) while the owner's setting allows them.
 - Every iOS app has its own, fully separate workspace (database, key, settings). Writing to the wrong app must be impossible, not just unlikely.
 - The ASC API has no sandbox; every write goes to production. Spikes and first writes run only on a test subscription group that is never submitted for review.
 - Nothing in the code is specific to one app; everything is workspace configuration.
@@ -33,7 +43,7 @@ The app shows itself to the user as **Purser Pricing** (the name "Purser" is tak
 
 ## Building from source
 
-The released build is signed by the maintainer. To build and sign your own you need an Apple Developer Program membership and your own bundle IDs: replace `com.lubosbury` in `project.yml`, the two `.entitlements` files, `App/Info.plist` and the Swift sources, and register the App IDs with App Groups and Keychain Sharing.
+The released build is signed by the maintainer. To build and sign your own you need an Apple Developer Program membership and your own bundle IDs: replace `com.lubosbury` in `project.yml`, the three `.entitlements` files, `App/Info.plist` and the Swift sources, and register the App IDs with App Groups and Keychain Sharing.
 
 
 | What | Note |
@@ -89,6 +99,7 @@ The dev build and the TestFlight build share the bundle id and therefore the dat
 | [ASC key rotation](docs/runbooks/key-rotation.md) | planned rotation, a person leaving, a suspected leak, a new Mac |
 | [Backup and restore](docs/runbooks/backup-restore.md) | Time Machine, monthly audit export, chain verification, restore |
 | [Slack webhook](docs/runbooks/slack.md) | notifications and the daily audit fingerprint |
+| [Claude (MCP)](docs/runbooks/mcp.md) | driving Purser from Claude Desktop, and what writing without Touch ID gives up |
 
 ## Documentation
 
@@ -106,7 +117,8 @@ The dev build and the TestFlight build share the bundle id and therefore the dat
 |---|---|
 | `App/` | the SwiftUI app (target `Purser`) |
 | `LoginItem/` | the login item for the nightly sync (target `PurserLoginItem`) |
-| `Packages/PurserCore/` | the core: Domain, Store, Audit, PurserSecurity (folder `Sources/Security`), ASCClient, Catalog, Importer, Policy, Planner, Executor, Background and the tests |
+| `MCPHelper/` | `purser-mcp`, the stdio MCP server that forwards tool calls to the running app (target `PurserMCP`) |
+| `Packages/PurserCore/` | the core: Domain, Store, Audit, PurserSecurity (folder `Sources/Security`), ASCClient, Catalog, Importer, Policy, Planner, Executor, Background, MCPBridge, MCPTools and the tests |
 | `Config/` | xcconfig, `ExportOptions.plist` |
 | `Tools/` | `check-asc-endpoints.py`; `mint-token.swift`, `record-fixture.sh` and `redact-fixture.py` (recording GET responses and redacting fixtures); `asc-readonly-get.swift` (GET only with a GET-scoped token, for key spikes); `verify-audit-export.swift` (offline check of an audit export) |
 | `docs/` | spec, research, spikes, runbooks |
