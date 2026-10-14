@@ -92,25 +92,6 @@ struct RegularChangeScenarioTests {
         return (planId, state, draft)
     }
 
-    struct SimulatedCrash: Error {}
-
-    /// Applies until `crash` is reached, then recovers and resumes once, both under the real policy.
-    func crashAndResume(_ h: ExecutorHarness, planId: String, at crash: ExecutorStep) async throws -> PlanState {
-        let first = h.makeExecutor(policy: PolicyEngine())
-        await first.setStepHook { step in
-            if step == crash { throw SimulatedCrash() }
-        }
-        do {
-            _ = try await first.apply(planId: planId, confirm: Confirm.accept)
-            Issue.record("the simulated crash at \(crash) did not happen")
-        } catch is SimulatedCrash {
-        }
-        h.clock.advance(by: AppleConstants.heartbeatSeconds * 4)
-        let second = h.makeExecutor(policy: PolicyEngine())
-        #expect(try await second.recover(afterWake: false) == [planId])
-        return try await second.resume(planId: planId, confirm: Confirm.accept)
-    }
-
     func noIntroOrPromoAtOrAboveRegular(_ h: ExecutorHarness) async throws {
         let snapshot = try await h.initialSync()
         let verdicts = PolicyEngine().invariants(snapshot, today: h.today)
@@ -145,7 +126,7 @@ struct RegularChangeScenarioTests {
                 $0.cell == .intro(subscriptionId: "sub-n", territory: crashed, planType: .upfront) && $0.op == .post
             })
             let crash: ExecutorStep = beforeCommit ? .afterResponse(seq: introPost.seq) : .afterItemCommitted(seq: introPost.seq)
-            let state = try await crashAndResume(h, planId: planId, at: crash)
+            let state = try await h.crashAndResume(planId: planId, at: crash)
             let stale = try h.store.items(planId: planId).filter { $0.state == .stale }.map { "\($0.item.seq) \($0.item.op) \($0.item.cell)" }
             #expect(state == .scheduled, "crash at \(crash): stale \(stale)")
             let writes = await Self.writes(h)
