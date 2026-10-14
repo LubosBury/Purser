@@ -4,6 +4,7 @@ import Domain
 import Store
 import Audit
 import Catalog
+import Policy
 @testable import Executor
 import PurserTestSupport
 
@@ -12,9 +13,9 @@ private struct SimulatedCrash: Error {}
 private func day(_ s: String) -> CalendarDate { CalendarDate(iso: s)! }
 
 /// Crashes the first executor when `shouldCrash` says so, then restarts with recover() + resume().
-private func crashAndResume(_ h: ExecutorHarness, planId: String,
+private func crashAndResume(_ h: ExecutorHarness, planId: String, policy: PolicyEngine = PolicyEngine(planRules: [], invariants: []),
                             shouldCrash: @escaping @Sendable (Int, ExecutorStep) -> Bool) async throws -> PlanState {
-    let first = h.makeExecutor()
+    let first = h.makeExecutor(policy: policy)
     let counter = Locked(0)
     await first.setStepHook { step in
         var index = 0
@@ -27,7 +28,7 @@ private func crashAndResume(_ h: ExecutorHarness, planId: String,
     } catch is SimulatedCrash {
     }
     h.clock.advance(by: AppleConstants.heartbeatSeconds * 4)
-    let second = h.makeExecutor()
+    let second = h.makeExecutor(policy: policy)
     #expect(try await second.recover(afterWake: false) == [planId])
     return try await second.resume(planId: planId, confirm: Confirm.accept)
 }
@@ -120,5 +121,25 @@ struct CrashResumeTests {
         #expect(model.intros.contains { $0.territory == "DEU" && $0.startDate == day("2026-11-01") && $0.duration == .oneMonth })
         #expect(await h.fake.writeRequests().count == 2)
         try await assertInvariants(h, planId: planId, items: items, context: "PATCH_END -> POST")
+    }
+
+    /// The write reached ASC but the crash left the item InFlight: the live state is its target, not its before, and
+    /// preflight 2b resolves it to Done. A4 must not block the first resume over it (the default policy, not the empty one).
+    @Test func crashAfterAcceptedWriteResumesOnFirstTryUnderDefaultPolicy() async throws {
+        let h = try await ExecutorHarness.make()
+        let (planId, items) = try await Scenarios.plan(h, cells: [Scenarios.newIntro(sub: "sub-m", territory: "USA", start: "2026-11-01")])
+        let final = try await crashAndResume(h, planId: planId, policy: PolicyEngine()) { _, step in step == .afterResponse(seq: 1) }
+        #expect(final == .scheduled)
+        #expect(await h.fake.writeRequests().count == 1)
+        try await assertInvariants(h, planId: planId, items: items, context: "POST accepted, InFlight")
+    }
+
+    @Test func crashAfterAcceptedDeleteResumesThePostUnderDefaultPolicy() async throws {
+        let h = try await ExecutorHarness.make()
+        let (planId, items) = try await Scenarios.plan(h, cells: [Scenarios.replaceScheduledRegular(territory: "CZE")])
+        let final = try await crashAndResume(h, planId: planId, policy: PolicyEngine()) { _, step in step == .afterResponse(seq: 1) }
+        #expect(final == .scheduled)
+        #expect(await h.fake.writeRequests().count == 2)
+        try await assertInvariants(h, planId: planId, items: items, context: "DELETE accepted, InFlight")
     }
 }
