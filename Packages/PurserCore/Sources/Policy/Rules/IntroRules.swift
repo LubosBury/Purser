@@ -90,6 +90,7 @@ struct I7LiveIntroRule: PlanRule {
 
 /// I8: a regular price change on day D in a cell with a paid intro needs a replacement intro starting on the same day
 /// (max(D, start of the intro) for an intro that starts later), or an explicit skip with a reason (C2).
+/// On resume a replacement the plan already wrote counts too (`writtenItems`).
 struct I8IntroReplacementRule: PlanRule {
     let id: RuleID = "I8"
     func evaluate(_ context: PolicyContext) -> [Verdict] {
@@ -100,7 +101,8 @@ struct I8IntroReplacementRule: PlanRule {
             guard case let .intro(current, future) = context.snapshot.cellState(introCell, on: context.today) else { return nil }
             let paid = [current, future].compactMap { $0 }.filter { $0.pricePointId != nil && ($0.endDate.map { $0 > day } ?? true) }
             guard !paid.isEmpty else { return nil }
-            let starts = Set(context.items.filter { $0.cell == introCell }.compactMap { $0.newIntro.map { $0.startDate ?? context.today } })
+            let starts = Set((context.items + context.writtenItems).filter { $0.cell == introCell }
+                .compactMap { $0.newIntro.map { $0.startDate ?? context.today } })
             let replaced = paid.allSatisfy { starts.contains(max(day, $0.startDate ?? context.today)) }
             if replaced { return nil }
             if let reason = context.spec.skippedIntroReplacements[introCell] {

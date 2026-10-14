@@ -77,14 +77,38 @@ struct RegularChangeScenarioTests {
                      "\(method) \(path) \(territory) missing in \(writes)")
     }
 
-    func run(_ h: ExecutorHarness, _ spec: PlanSpec) async throws -> (planId: String, state: PlanState, draft: PlanDraft) {
+    func save(_ h: ExecutorHarness, _ spec: PlanSpec) async throws -> (planId: String, draft: PlanDraft) {
         let snapshot = try await h.initialSync()
         let draft = try Planner(policy: PolicyEngine()).plan(spec, context: PlanningContext(snapshot: snapshot, config: h.config, today: h.today))
         #expect(draft.verdicts.filter { $0.severity == .block(.plan) }.isEmpty, "plan blocks: \(draft.verdicts)")
         let planId = try PlanPersistence(store: h.store, audit: h.audit, appBuild: "test")
             .saveDraft(draft, binding: PlanBinding(config: h.config), reason: "Regular change scenario test", replanOf: nil)
+        return (planId, draft)
+    }
+
+    func run(_ h: ExecutorHarness, _ spec: PlanSpec) async throws -> (planId: String, state: PlanState, draft: PlanDraft) {
+        let (planId, draft) = try await save(h, spec)
         let state = try await h.makeExecutor(policy: PolicyEngine()).apply(planId: planId, confirm: Confirm.accept)
         return (planId, state, draft)
+    }
+
+    struct SimulatedCrash: Error {}
+
+    /// Applies until `crash` is reached, then recovers and resumes once, both under the real policy.
+    func crashAndResume(_ h: ExecutorHarness, planId: String, at crash: ExecutorStep) async throws -> PlanState {
+        let first = h.makeExecutor(policy: PolicyEngine())
+        await first.setStepHook { step in
+            if step == crash { throw SimulatedCrash() }
+        }
+        do {
+            _ = try await first.apply(planId: planId, confirm: Confirm.accept)
+            Issue.record("the simulated crash at \(crash) did not happen")
+        } catch is SimulatedCrash {
+        }
+        h.clock.advance(by: AppleConstants.heartbeatSeconds * 4)
+        let second = h.makeExecutor(policy: PolicyEngine())
+        #expect(try await second.recover(afterWake: false) == [planId])
+        return try await second.resume(planId: planId, confirm: Confirm.accept)
     }
 
     func noIntroOrPromoAtOrAboveRegular(_ h: ExecutorHarness) async throws {
@@ -108,6 +132,31 @@ struct RegularChangeScenarioTests {
         let offer = try #require(await h.fake.model.promos.first { $0.id == Self.promoId })
         #expect(offer.prices.allSatisfy { $0.pricePointId == "pp-sub-n-\($0.territory)-14" })
         try await noIntroOrPromoAtOrAboveRegular(h)
+    }
+
+    /// A crash after an intro POST, committed or still in flight, then one resume under the real policy: the written intro
+    /// still counts as the replacement of the paid intro (I8), and an in-flight write that landed does not trip A4.
+    @Test(arguments: [false, true])
+    func decreaseResumesAfterCrashBehindEachIntroPost(beforeCommit: Bool) async throws {
+        for crashed in Self.territories {
+            let h = try await ExecutorHarness.make(model: Self.model())
+            let (planId, draft) = try await save(h, Self.spec(newPrice: "24.99", preserve: nil, start: h.today.adding(days: 9)))
+            let introPost = try #require(draft.items.first {
+                $0.cell == .intro(subscriptionId: "sub-n", territory: crashed, planType: .upfront) && $0.op == .post
+            })
+            let crash: ExecutorStep = beforeCommit ? .afterResponse(seq: introPost.seq) : .afterItemCommitted(seq: introPost.seq)
+            let state = try await crashAndResume(h, planId: planId, at: crash)
+            let stale = try h.store.items(planId: planId).filter { $0.state == .stale }.map { "\($0.item.seq) \($0.item.op) \($0.item.cell)" }
+            #expect(state == .scheduled, "crash at \(crash): stale \(stale)")
+            let writes = await Self.writes(h)
+            for territory in Self.territories {
+                #expect(writes.filter { $0.path == "/v1/subscriptionPrices" && $0.territory == territory.rawValue }.count == 1,
+                        "crash at \(crash), \(territory): \(writes)")
+                #expect(writes.filter { $0.path == "/v1/subscriptionIntroductoryOffers" && $0.territory == territory.rawValue }.count == 1,
+                        "crash at \(crash), \(territory): \(writes)")
+            }
+            try await noIntroOrPromoAtOrAboveRegular(h)
+        }
     }
 
     @Test func increaseWritesRegularBeforeIntroAndLeavesPromo() async throws {

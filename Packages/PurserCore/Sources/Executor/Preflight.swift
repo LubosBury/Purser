@@ -132,8 +132,9 @@ package struct Preflight: Sendable {
 
         // Re-policy over the items that are still to be written. An InFlight item 2b found written is not one of them:
         // its target is already the live state, so A4 checks the next item of its chain against it.
-        let written = Set(changes.filter { $0.to == .done }.map(\.seq))
-        let remaining = items.filter { ($0.state == .pending || $0.state == .inFlight) && !written.contains($0.item.seq) }
+        let landed = Set(changes.filter { $0.to == .done }.map(\.seq))
+        let remaining = items.filter { ($0.state == .pending || $0.state == .inFlight) && !landed.contains($0.item.seq) }
+        let written = items.filter { $0.state == .done || $0.state == .effective || landed.contains($0.item.seq) }
         var liveBinding = PlanBinding(config: config)
         liveBinding.appId = live.id
         liveBinding.bundleId = live.bundleId
@@ -141,7 +142,7 @@ package struct Preflight: Sendable {
                                     spec: try PlanSpecSummarizer.summary(specJSON: plan.specJSON, config: config,
                                                                          unlockedCanaries: try LiveIntroCanaries.unlockedProducts(store: store)),
                                     items: remaining.map(\.item), liveBinding: liveBinding, liveBundleId: live.bundleId,
-                                    otherApplyingPlanIds: [])
+                                    otherApplyingPlanIds: [], writtenItems: written.map(\.item))
         verdicts += policy.evaluate(context)
         let verdictHash = PolicyEngine.hash(verdicts)
         let level = max(PolicyEngine.confirmationLevel(for: verdicts, config: config), plan.confirmationLevel)

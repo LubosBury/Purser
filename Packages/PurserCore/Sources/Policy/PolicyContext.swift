@@ -14,13 +14,15 @@ public struct PolicyContext: Sendable {
     public var otherApplyingPlanIds: [String]
     /// Latest X-Rate-Limit reading (rule A7); nil when unknown. Additive to K8.
     public var rateLimit: RateLimitSnapshot?
+    /// Items of the same plan already written when a resume re-checks the rest (`items`); empty while drafting.
+    public var writtenItems: [PlannedItem]
 
     public init(snapshot: CatalogSnapshot, config: WorkspaceConfig, today: CalendarDate, spec: PlanSpecSummary,
                 items: [PlannedItem], liveBinding: PlanBinding?, liveBundleId: String?, otherApplyingPlanIds: [String],
-                rateLimit: RateLimitSnapshot? = nil) {
+                rateLimit: RateLimitSnapshot? = nil, writtenItems: [PlannedItem] = []) {
         self.snapshot = snapshot; self.config = config; self.today = today; self.spec = spec; self.items = items
         self.liveBinding = liveBinding; self.liveBundleId = liveBundleId; self.otherApplyingPlanIds = otherApplyingPlanIds
-        self.rateLimit = rateLimit
+        self.rateLimit = rateLimit; self.writtenItems = writtenItems
     }
 }
 
