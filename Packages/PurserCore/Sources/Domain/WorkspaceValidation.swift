@@ -17,8 +17,9 @@ public enum WorkspaceValidation {
         if bundleId.wholeMatch(of: /[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/) == nil {
             problems.append("The bundle ID has the form com.company.app.")
         }
-        if keyId.wholeMatch(of: /[A-Z0-9]{10}/) == nil {
-            problems.append("The Key ID has 10 characters (capital letters and digits).")
+        // Team keys have 10 characters, individual keys 12; Apple documents neither, so only the floor is checked.
+        if keyId.wholeMatch(of: /[A-Z0-9]{10,}/) == nil {
+            problems.append("The Key ID is 10 or more capital letters and digits, as App Store Connect shows it.")
         }
         let issuer = issuerId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         switch keyKind {

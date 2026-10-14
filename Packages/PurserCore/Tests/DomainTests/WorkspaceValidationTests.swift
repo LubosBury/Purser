@@ -14,6 +14,21 @@ import Domain
                                              issuerId: nil).isEmpty)
     }
 
+    /// App Store Connect issues 12-character Key IDs for individual keys (team keys have 10).
+    @Test func acceptsATwelveCharacterIndividualKeyId() {
+        #expect(WorkspaceValidation.problems(name: "Fruit Journal", colorHex: "#2E7D32", appId: "6400000001",
+                                             bundleId: "com.example.fruitjournal", keyKind: .individual, keyId: "1ABC23D45E6F",
+                                             issuerId: nil).isEmpty)
+    }
+
+    @Test func rejectsAKeyIdThatIsNotCapitalLettersAndDigits() {
+        for keyId in ["ABCDEF123", "abcdef1234", "ABCDEF-1234"] {
+            #expect(WorkspaceValidation.problems(name: "Fruit Journal", colorHex: "#2E7D32", appId: "6400000001",
+                                                 bundleId: "com.example.fruitjournal", keyKind: .individual, keyId: keyId,
+                                                 issuerId: nil).count == 1)
+        }
+    }
+
     @Test func reportsEveryProblem() {
         let problems = WorkspaceValidation.problems(name: "  ", colorHex: "green", appId: "app-1", bundleId: "fruit",
                                                     keyKind: .team, keyId: "abc", issuerId: "")
