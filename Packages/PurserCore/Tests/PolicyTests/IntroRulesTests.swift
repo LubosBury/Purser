@@ -172,6 +172,18 @@ import PurserTestSupport
         #expect(I8IntroReplacementRule().evaluate(context(snapshot, [price, ownStart])).isEmpty)
     }
 
+    /// Resume: the replacement is already in the snapshot and no longer to be written; the plan still contains it.
+    @Test func i8CountsAReplacementTheResumeAlreadyWrote() {
+        var catalog = basicCatalog(state: .readyToSubmit)
+        let start = today.adding(days: 7)
+        catalog.addIntro("s", "USA", price: d("23.99"), start: start, ascId: "io-written")
+        let snapshot = catalog.snapshot()
+        let price = ItemFactory.regularPost(3, snapshot, sub: "s", territory: "USA", price: d("34.99"), start: start, preserve: true)
+        #expect(I8IntroReplacementRule().evaluate(context(snapshot, [price])).map(\.severity) == [.block(.cell)])
+        let post = ItemFactory.introPost(2, before: empty, sub: "s", territory: "USA", price: d("23.99"), start: start)
+        #expect(I8IntroReplacementRule().evaluate(context(snapshot, [price], written: [post])).isEmpty)
+    }
+
     @Test func i9() {
         let snapshot = basicCatalog().snapshot()
         #expect(I9IntroEligibilityRule().evaluate(context(snapshot, [])).isEmpty)

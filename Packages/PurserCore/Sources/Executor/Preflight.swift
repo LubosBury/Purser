@@ -83,25 +83,6 @@ package struct Preflight: Sendable {
             }
         }
 
-        // Re-policy over the items that are still to be written.
-        let remaining = items.filter { $0.state == .pending || $0.state == .inFlight }
-        var liveBinding = PlanBinding(config: config)
-        liveBinding.appId = live.id
-        liveBinding.bundleId = live.bundleId
-        let context = PolicyContext(snapshot: snapshot, config: config, today: today,
-                                    spec: try PlanSpecSummarizer.summary(specJSON: plan.specJSON, config: config,
-                                                                         unlockedCanaries: try LiveIntroCanaries.unlockedProducts(store: store)),
-                                    items: remaining.map(\.item), liveBinding: liveBinding, liveBundleId: live.bundleId,
-                                    otherApplyingPlanIds: [])
-        verdicts += policy.evaluate(context)
-        let verdictHash = PolicyEngine.hash(verdicts)
-        let level = max(PolicyEngine.confirmationLevel(for: verdicts, config: config), plan.confirmationLevel)
-        let remainingCells = Set(remaining.map { $0.item.cell })
-        var cellBlockers: [CellKey: [Verdict]] = [:]
-        for verdict in verdicts where verdict.severity == .block(.cell) {
-            if let cell = verdict.cell, remainingCells.contains(cell) { cellBlockers[cell, default: []].append(verdict) }
-        }
-
         // Cells: 2a compares the first pending item; 2b walks each chain from its first unexecuted item.
         var staleCells = Set<CellKey>()
         var changes: [ItemChange] = []
@@ -134,6 +115,27 @@ package struct Preflight: Sendable {
                     }
                 }
             }
+        }
+
+        // Re-policy over the items that are still to be written; an in-flight item whose target 2b found is written.
+        let landed = Set(changes.filter { $0.to == .done }.map(\.seq))
+        let remaining = items.filter { ($0.state == .pending || $0.state == .inFlight) && !landed.contains($0.item.seq) }
+        let written = items.filter { $0.state == .done || $0.state == .effective || landed.contains($0.item.seq) }
+        var liveBinding = PlanBinding(config: config)
+        liveBinding.appId = live.id
+        liveBinding.bundleId = live.bundleId
+        let context = PolicyContext(snapshot: snapshot, config: config, today: today,
+                                    spec: try PlanSpecSummarizer.summary(specJSON: plan.specJSON, config: config,
+                                                                         unlockedCanaries: try LiveIntroCanaries.unlockedProducts(store: store)),
+                                    items: remaining.map(\.item), liveBinding: liveBinding, liveBundleId: live.bundleId,
+                                    otherApplyingPlanIds: [], writtenItems: written.map(\.item))
+        verdicts += policy.evaluate(context)
+        let verdictHash = PolicyEngine.hash(verdicts)
+        let level = max(PolicyEngine.confirmationLevel(for: verdicts, config: config), plan.confirmationLevel)
+        let remainingCells = Set(remaining.map { $0.item.cell })
+        var cellBlockers: [CellKey: [Verdict]] = [:]
+        for verdict in verdicts where verdict.severity == .block(.cell) {
+            if let cell = verdict.cell, remainingCells.contains(cell) { cellBlockers[cell, default: []].append(verdict) }
         }
 
         return PreflightOutcome(liveApp: live, snapshot: snapshot, productStates: states, verdicts: verdicts, verdictHash: verdictHash,
