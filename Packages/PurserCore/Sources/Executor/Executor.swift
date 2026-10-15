@@ -213,7 +213,9 @@ public actor Executor {
         try audit.append(.confirmation, refs: ["plan": planId], payload: ConfirmationPayload(
             level: request.level.rawValue, accepted: response.accepted && problems.isEmpty, problems: problems, reason: response.reason,
             acknowledgedExclusions: response.acknowledgedExclusions, checkedRiskClasses: response.checkedRiskClasses.sorted(),
-            riskClasses: request.riskClasses, verdictHash: verdictHash, verdictHashChanged: request.verdictHashChanged))
+            riskClasses: request.riskClasses, verdictHash: verdictHash, verdictHashChanged: request.verdictHashChanged,
+            exceptions: request.verdicts.contains { $0.rule == IAPScheduleSpikeGateRule.exceptionId }
+                ? [IAPScheduleSpikeGateRule.exceptionId.rawValue] : nil))
     }
 
     /// First item of each listed cell becomes Stale (its chain Skipped) and the plan becomes Stale; nothing was written.

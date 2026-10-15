@@ -62,6 +62,15 @@ extension Executor {
         }
 
         try setPlan(planId, to: .applying, pause: nil) { $0.productStates = outcome.productStates }
+        // S10: the fresh read no longer allows exception S10a (a manual price or another base territory appeared since
+        // planning). Nothing is written; the plan goes back to Draft with the BLOCK.
+        if outcome.planBlockers.contains(where: { $0.rule == IAPScheduleSpikeGateRule().id }) {
+            try setPlan(planId, to: .draft, pause: nil, note: "preflight: S10 blocks, the IAP schedule changed since planning") { stored in
+                stored.verdicts = outcome.verdicts
+                stored.verdictHash = outcome.verdictHash
+            }
+            return .draft
+        }
         if !outcome.planBlockers.isEmpty || !outcome.staleCells.isEmpty || !outcome.cellBlockers.isEmpty {
             try markStale(planId, cells: outcome.staleCells.union(outcome.cellBlockers.keys), verdicts: outcome.verdicts,
                           note: "preflight 2a: live state or verdicts changed")

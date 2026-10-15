@@ -70,6 +70,8 @@ struct ConfirmationPayload: Encodable, Sendable {
     var riskClasses: [String: Int]
     var verdictHash: String
     var verdictHashChanged: Bool
+    /// Exceptions the confirmed plan passed through (S10a); omitted when there are none.
+    var exceptions: [String]?
 }
 
 /// Raw ASC error as stored in item.error_json and in the audit.

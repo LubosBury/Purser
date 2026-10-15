@@ -74,4 +74,60 @@ struct IAPScheduleScenarioTests {
         let draft = try await draft(h, Self.spec([("USA", "24.99")]))
         #expect(draft.verdicts.contains { $0.rule == "S10" && $0.severity == .block(.plan) })
     }
+
+    /// FruitJar's iap-life with a schedule that keeps base USA and has no manual price (exception S10a).
+    static func dropManualPrices(_ h: ExecutorHarness) async {
+        await h.fake.mutate { model in
+            for i in model.iapSchedules.indices where model.iapSchedules[i].iapId == "iap-life" { model.iapSchedules[i].manualPrices = [] }
+        }
+    }
+
+    @Test(.enabled(if: !AppleConstants.iapScheduleReplaceConfirmed))
+    func scheduleReplaceOverAManualPriceHasNoS10a() async throws {
+        let h = try await ExecutorHarness.make()
+        let draft = try await draft(h, Self.spec([("USA", "24.99")]))
+        #expect(draft.verdicts.contains { $0.rule == "S10" && $0.severity == .block(.plan) })
+        #expect(!draft.verdicts.contains { $0.rule == "S10a" })
+    }
+
+    @Test(.enabled(if: !AppleConstants.iapScheduleReplaceConfirmed), arguments: [false, true])
+    func iapWithoutManualPricesPassesWithS10a(removeSchedule: Bool) async throws {
+        let h = try await ExecutorHarness.make()
+        if removeSchedule {
+            await h.fake.mutate { $0.iapSchedules.removeAll { $0.iapId == "iap-life" } }
+        } else {
+            await Self.dropManualPrices(h)
+        }
+        let draft = try await draft(h, Self.spec([("USA", "24.99"), ("CZE", "19.99")]))
+        #expect(!draft.verdicts.contains { if case .block = $0.severity { return true } else { return false } })
+        #expect(draft.verdicts.contains { $0.rule == "S10a" && $0.severity == .warn })
+
+        let result = try await apply(h, draft)
+        #expect(result.state == .effective)
+        #expect(await h.fake.writeRequests().map { "\($0.method) \($0.path)" } == ["POST /v1/inAppPurchasePriceSchedules"])
+        let confirmation = try #require(try h.audit.events(after: 0, limit: 100_000).last { $0.type == .confirmation })
+        #expect(confirmation.payloadJSON.contains("\"exceptions\":[\"S10a\"]"))
+    }
+
+    @Test(.enabled(if: !AppleConstants.iapScheduleReplaceConfirmed))
+    func manualPriceAddedBeforeApplyStopsItInDraft() async throws {
+        let h = try await ExecutorHarness.make()
+        await Self.dropManualPrices(h)
+        let draft = try await draft(h, Self.spec([("USA", "24.99")]))
+        #expect(draft.verdicts.contains { $0.rule == "S10a" })
+        await h.fake.mutate { model in
+            for i in model.iapSchedules.indices where model.iapSchedules[i].iapId == "iap-life" {
+                model.iapSchedules[i].manualPrices = [FakeIAPManualPrice(id: "iapprice-new", territory: "USA",
+                                                                         pricePointId: "pp-iap-life-USA-29", startDate: nil, endDate: nil)]
+            }
+        }
+
+        let result = try await apply(h, draft)
+        #expect(result.state == .draft)
+        #expect(await h.fake.writeRequests().isEmpty)
+        let plan = try #require(try h.store.plan(id: result.planId))
+        #expect(plan.verdicts.contains { $0.rule == "S10" && $0.severity == .block(.plan) })
+        #expect(!plan.verdicts.contains { $0.rule == "S10a" })
+        #expect(try h.store.items(planId: result.planId).allSatisfy { $0.state == .pending })
+    }
 }

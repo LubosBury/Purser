@@ -12,6 +12,8 @@ Every change takes the same path: import from a Google Sheet or a CSV, or a rule
 
 Purser was developed and tested on the maintainer's own app, [Juice: Fuel & EV Charge Log](https://apps.apple.com/app/juice-fuel-ev-charge-log/id6787720329). The specification and the spike records in `docs/` call it Juice. All live trials ran in its "Purser Spike" subscription group, which is never submitted for review. The text and cloning writes added in 1.2 have not run against live App Store Connect yet: spike SL10n ([docs/spikes/SL10n.md](docs/spikes/SL10n.md)) is pending, and until it runs, what Purser expects Apple to answer to those requests is an assumption.
 
+Writing the price schedule of an in-app purchase stays blocked (rule S10) until spike S10 confirms that a POST replaces the whole schedule. Since 1.2.1 one case passes with a warning (S10a): an in-app purchase without manual prices whose base territory the plan keeps, because there the POST has nothing to remove. Purser checks this again from a fresh read just before it writes; if a manual price appeared in the meantime, the plan goes back to Draft and nothing is written.
+
 ## Install
 
 Download the latest notarized build from the [Releases](../../releases) page, move `Purser Pricing.app` to Applications and open it. It needs macOS 15 or later and a Mac with Touch ID. On first launch Purser asks for the name it records in the audit as the actor; it can be changed in Settings behind Touch ID.
