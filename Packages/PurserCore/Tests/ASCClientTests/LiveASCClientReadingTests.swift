@@ -66,10 +66,10 @@ import PurserTestSupport
         #expect(subscriptions == [
             SubscriptionInfo(ascId: "6500000001", productId: "fruit.yearly", name: "Fruit Yearly", period: .oneYear, state: .approved,
                              groupId: "7000000001", groupName: "Fruit Premium", availableTerritories: ["USA", "CZE", "DEU"],
-                             monthlyPlanAvailable: false),
+                             monthlyPlanAvailable: false, familySharable: false, groupLevel: 1),
             SubscriptionInfo(ascId: "6500000002", productId: "fruit.monthly", name: "Fruit Monthly", period: .oneMonth, state: .readyToSubmit,
                              groupId: "7000000001", groupName: "Fruit Premium", availableTerritories: ["USA", "CZE"],
-                             monthlyPlanAvailable: false),
+                             monthlyPlanAvailable: false, familySharable: false, groupLevel: 2),
         ])
     }
 
@@ -152,7 +152,8 @@ import PurserTestSupport
     @Test func readsInAppPurchaseScheduleAndPoints() async throws {
         let client = try Self.makeClient(try Self.routedTransport())
         let iaps = try await client.inAppPurchases(appId: "6400000001")
-        #expect(iaps == [IAPInfo(ascId: "6600000001", productId: "fruit.lifetime", name: "Fruit Lifetime", iapType: "NON_CONSUMABLE", state: .approved)])
+        #expect(iaps == [IAPInfo(ascId: "6600000001", productId: "fruit.lifetime", name: "Fruit Lifetime", iapType: "NON_CONSUMABLE", state: .approved,
+                                 familySharable: false)])
         let schedule = try #require(try await client.iapPriceSchedule(iapId: "6600000001"))
         #expect(schedule == IAPSchedule(iapId: "6600000001", scheduleId: "6600000001", baseTerritory: "USA", manualPrices: [
             IAPManualPrice(ascId: "iap-price-usa", territory: "USA", pricePointId: "iap-USA-4999", startDate: nil, endDate: nil,

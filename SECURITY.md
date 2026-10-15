@@ -10,7 +10,7 @@ Never include a real `.p8` key, a token, a Slack webhook URL or real product ids
 
 ## Scope
 
-In scope: anything that lets Purser write to an app other than the workspace's app, write without Touch ID (other than over the MCP bridge while the owner's setting allows it, see [docs/runbooks/mcp.md](docs/runbooks/mcp.md)) or without an audit record, leak a key, token or webhook from the Keychain, or forge or silently alter the audit chain.
+In scope: anything that lets Purser write to an app other than the workspace's app, write without Touch ID (other than over the MCP bridge while the owner's setting allows it, see [docs/runbooks/mcp.md](docs/runbooks/mcp.md)) or without an audit record, leak a key, token or webhook from the Keychain, or forge or silently alter the audit chain. Also in scope: anything that makes `AssetTransfer`, which copies a clone's review screenshot, reach a host other than Apple's image CDN and upload hosts, use anything but https, follow a redirect or send the key or a token.
 
 Out of scope: an attacker who already controls the unlocked Mac and its Touch ID, and the behaviour of Apple's services.
 

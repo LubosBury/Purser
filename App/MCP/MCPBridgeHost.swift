@@ -20,7 +20,7 @@ final class MCPBridgeHost {
     }
 
     private(set) var isEnabled: Bool
-    /// Applies, resumes and product creation asked for over MCP run without Touch ID.
+    /// Applies, resumes, product creations and clones asked for over MCP run without Touch ID.
     private(set) var writesWithoutTouchID: Bool
     private(set) var isListening = false
     private(set) var lastError: String?

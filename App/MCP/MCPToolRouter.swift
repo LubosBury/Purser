@@ -70,6 +70,8 @@ final class MCPToolRouter {
             return ToolResult(text: try await run(name, request.arguments, session).line())
         } catch let error as ToolArgumentError {
             return .failure(error.message)
+        } catch let error as ProductCreationError {
+            return .failure(error.localizedDescription)
         } catch {
             return .failure(String(describing: error))
         }
@@ -128,6 +130,10 @@ final class MCPToolRouter {
                 throw ToolArgumentError("No product with the ASC id or Product ID “\(reference)”. list_products shows the known ones.")
             }
             return prices
+        case .getLocalizations:
+            let snapshot = try await snapshot(session)
+            let parsed = LocalizationArguments(arguments, snapshot: snapshot)
+            return MCPRender.localizations(try parsed.owners(), snapshot: snapshot, locales: try parsed.locales())
         case .listFindings:
             _ = try await snapshot(session)
             return MCPRender.findings(session.planning.findingGroups) { session.planning.productName($0) }
@@ -152,6 +158,9 @@ final class MCPToolRouter {
         case .createPromoOfferPlan:
             let parsed = PlanArguments(arguments, snapshot: try await snapshot(session))
             return try await build(try parsed.promo(), reason: parsed.reason, session)
+        case .createLocalizationPlan:
+            let parsed = LocalizationPlanArguments(arguments, snapshot: try await snapshot(session))
+            return try await build(try parsed.spec(), reason: parsed.reason, session)
         case .getImportFormat:
             guard let mapping = session.config.importMapping else {
                 throw ToolArgumentError("The workspace has no import mapping yet. export_import_template creates one.")
@@ -208,6 +217,36 @@ final class MCPToolRouter {
             let reports = try await session.makeProductCreator(gate: MCPWriteGate()).create(request)
             return ["steps": .array(reports.map(Self.describe)),
                     "note": "Run sync_catalog to see the new products. They still need metadata and App Review in App Store Connect."]
+        case .previewClone:
+            // While a run writes, what it would list still changes (a timed-out clone_products keeps running in the app).
+            if let running = session.productRuns.running { return MCPRender.productRunInProgress(running) }
+            let snapshot = try await snapshot(session)
+            let request = try cloneRequest(arguments, snapshot)
+            return MCPRender.cloneSteps(try await session.makeProductCreator().previewClone(request, snapshot: snapshot), snapshot: snapshot)
+        case .cloneProducts:
+            // The answer leaves before the helper gives up on the call, counted from here: the clone itself uses part of it.
+            let answerBy = ContinuousClock.now + .seconds(BridgeClient.callTimeout - Self.answerMargin)
+            // The run stays marked until the drafts are built (the task below releases the claim), so a second
+            // clone_products or preview_clone does not meet a clone whose drafts are still being built.
+            let claim = try session.productRuns.claim(.clone)
+            let snapshot: CatalogSnapshot, request: CloneRequest, report: CloneReport
+            do {
+                snapshot = try await self.snapshot(session)
+                request = try cloneRequest(arguments, snapshot)
+                report = try await session.makeProductCreator(gate: MCPWriteGate()).clone(request, snapshot: snapshot, holding: claim)
+            } catch {
+                claim.release()
+                throw error
+            }
+            // The sync and the drafts may outlast that; they finish in the app either way.
+            let pending = PendingCloneDrafts()
+            Task { pending.outcome = await session.prepareCloneDrafts(created: report.created, copy: request.copy,
+                                                                     offerCodeSuffix: request.offerCodeSuffix, holding: claim) }
+            while pending.outcome == nil, ContinuousClock.now < answerBy {
+                model.noteActivity()
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            return MCPRender.cloneResult(report, drafts: pending.outcome, snapshot: snapshot)
         }
     }
 
@@ -254,8 +293,11 @@ final class MCPToolRouter {
             return (plan, items, rows)
         }.value
         guard let (plan, items, rows) = loaded else { throw ToolArgumentError("No plan with the id “\(planId)”. list_plans shows the known ones.") }
+        let versions = ReadyForReview.status(plan: plan, items: items, metadata: snapshot.metadata)
         return MCPRender.plan(plan, items: items, rows: rows, appName: config.name, productName: { session.planning.productName($0) },
-                              flaggedOnly: flaggedOnly, maxRows: maxRows)
+                              flaggedOnly: flaggedOnly, maxRows: maxRows,
+                              readyForReview: MCPRender.readyForReview(versions.ready) { snapshot.ownerName($0) },
+                              incompleteVersions: MCPRender.incompleteVersions(versions.incomplete) { snapshot.ownerName($0) })
     }
 
     private func sync(_ session: WorkspaceSession) async throws -> JSONValue {
@@ -468,9 +510,19 @@ final class MCPToolRouter {
         }
         if let planId {
             result["plan_id"] = .string(planId)
-            if let plan = try? session.planStore.plan(id: planId) { result["plan"] = MCPRender.planSummary(plan) }
+            let plan = try? session.planStore.plan(id: planId)
+            if let plan { result["plan"] = MCPRender.planSummary(plan) }
             if let items = try? session.planStore.items(planId: planId) {
                 result["item_states"] = .object(Dictionary(grouping: items, by: \.state.rawValue).mapValues { MCPRender.number($0.count) })
+                if let plan {
+                    let snapshot = session.planning.snapshot
+                    let versions = ReadyForReview.status(plan: plan, items: items, metadata: snapshot?.metadata ?? [:])
+                    let name: (LocalizationOwner) -> String = { snapshot?.ownerName($0) ?? $0.ascId }
+                    if let ready = MCPRender.readyForReview(versions.ready, ownerName: name) { result["ready_for_review"] = ready }
+                    if let incomplete = MCPRender.incompleteVersions(versions.incomplete, ownerName: name) {
+                        result["incomplete_versions"] = incomplete
+                    }
+                }
             }
         }
         if controller.total > 0 {
@@ -490,6 +542,21 @@ final class MCPToolRouter {
     }
 
     // MARK: Products
+
+    /// Seconds before the helper's timeout at which clone_products stops waiting for the drafts and answers.
+    private static let answerMargin: TimeInterval = 15
+
+    /// The price drafts of a clone, prepared by a task of their own.
+    @MainActor private final class PendingCloneDrafts {
+        var outcome: CloneDraftOutcome?
+    }
+
+    private func cloneRequest(_ arguments: JSONValue, _ snapshot: CatalogSnapshot) throws -> CloneRequest {
+        let request = try CloneArguments.request(arguments, snapshot: snapshot)
+        let problems = ClonePlanner.problems(request, snapshot: snapshot)
+        guard problems.isEmpty else { throw ToolArgumentError(problems.joined(separator: " ")) }
+        return request
+    }
 
     private func productRequest(_ arguments: JSONValue) throws -> ProductCreationRequest {
         let request = try PlanArguments.productCreation(arguments)

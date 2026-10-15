@@ -1,0 +1,27 @@
+{
+  "x-purser-fixture": "hand-made in L1 from the OpenAPI 4.5.1 schema (SubscriptionVersionsResponse); replace with a recorded fixture",
+  "data": [
+    { "type": "subscriptionVersions", "id": "sver-1",
+      "attributes": { "version": 1, "state": "REPLACED_WITH_NEW_VERSION" },
+      "relationships": { "localizations": { "data": [ { "type": "subscriptionLocalizations", "id": "sloc-1-en" } ] } } },
+    { "type": "subscriptionVersions", "id": "sver-2",
+      "attributes": { "version": 2, "state": "APPROVED" },
+      "relationships": { "localizations": { "data": [ { "type": "subscriptionLocalizations", "id": "sloc-2-cs" },
+                                                       { "type": "subscriptionLocalizations", "id": "sloc-2-en" } ] } } },
+    { "type": "subscriptionVersions", "id": "sver-3",
+      "attributes": { "version": 3, "state": "PREPARE_FOR_SUBMISSION" },
+      "relationships": { "localizations": { "data": [ { "type": "subscriptionLocalizations", "id": "sloc-3-cs" },
+                                                       { "type": "subscriptionLocalizations", "id": "sloc-3-de" },
+                                                       { "type": "subscriptionLocalizations", "id": "sloc-3-en" } ] } } }
+  ],
+  "included": [
+    { "type": "subscriptionLocalizations", "id": "sloc-1-en", "attributes": { "name": "Fruit Yearly", "locale": "en-US", "description": "Old text" } },
+    { "type": "subscriptionLocalizations", "id": "sloc-2-cs", "attributes": { "name": "Ovoce ročně", "locale": "cs", "description": "Ovoce na celý rok" } },
+    { "type": "subscriptionLocalizations", "id": "sloc-2-en", "attributes": { "name": "Fruit Yearly", "locale": "en-US", "description": "Fruit all year" } },
+    { "type": "subscriptionLocalizations", "id": "sloc-3-cs", "attributes": { "name": "Ovoce ročně", "locale": "cs", "description": "Ovoce na celý rok" } },
+    { "type": "subscriptionLocalizations", "id": "sloc-3-de", "attributes": { "name": "Obst jährlich", "locale": "de-DE", "description": null } },
+    { "type": "subscriptionLocalizations", "id": "sloc-3-en", "attributes": { "name": "Fruit Yearly Plus", "locale": "en-US", "description": "All the fruit, all year" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptions/6500000001/versions?include=localizations&limit%5Blocalizations%5D=50&limit=200" },
+  "meta": { "paging": { "total": 3, "limit": 200 } }
+}

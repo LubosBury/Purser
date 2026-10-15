@@ -34,6 +34,12 @@ public struct CatalogStore: Sendable {
                 }
             }
 
+            var groups: [String: SubscriptionGroupInfo] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT asc_id, reference_name FROM subscription_group WHERE last_sync >= ?", arguments: [syncId]) {
+                let group = SubscriptionGroupInfo(ascId: row["asc_id"], referenceName: row["reference_name"])
+                groups[group.ascId] = group
+            }
+
             var territories: [TerritoryCode: CurrencyCode] = [:]
             for row in try Row.fetchAll(db, sql: "SELECT code, currency FROM territory") {
                 territories[TerritoryCode(row["code"] as String)] = CurrencyCode(row["currency"] as String)
@@ -43,6 +49,7 @@ public struct CatalogStore: Sendable {
             var intro: [IntroOfferRow] = []
             var promo: [PromoOffer] = []
             var schedules: [String: IAPSchedule] = [:]
+            var texts: [LocalizationRow] = []
             for observation in try Self.liveObservations(db, productAscId: nil) {
                 switch observation.kind {
                 case ObservationKind.price: regular.append(try JSONCoding.decode(RegularPriceRow.self, from: observation.rawJSON))
@@ -51,6 +58,7 @@ public struct CatalogStore: Sendable {
                 case ObservationKind.iapSchedule:
                     let schedule = try JSONCoding.decode(IAPSchedule.self, from: observation.rawJSON)
                     schedules[schedule.iapId] = schedule
+                case ObservationKind.localization: texts.append(try JSONCoding.decode(LocalizationRow.self, from: observation.rawJSON))
                 default: continue
                 }
             }
@@ -63,10 +71,13 @@ public struct CatalogStore: Sendable {
                                   proceeds: (row["proceeds"] as String?).flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) })
             }
             let codes = Set(try String.fetchAll(db, sql: "SELECT offer_code FROM offer_code_registry"))
+            let metadata = try Self.metadata(db, texts: texts, known: Set(subscriptions.keys.map { LocalizationOwner.subscription($0) }
+                                                                         + iaps.keys.map { LocalizationOwner.iap($0) }
+                                                                         + groups.keys.map { LocalizationOwner.group($0) }))
 
             return CatalogSnapshot(syncId: syncId, takenAt: takenAt, subscriptions: subscriptions, iaps: iaps, territories: territories,
                                    regularRows: regular, introRows: intro, promoOffers: promo, iapSchedules: schedules,
-                                   pricePoints: PricePointIndex(points), offerCodesEverSeen: codes)
+                                   pricePoints: PricePointIndex(points), offerCodesEverSeen: codes, groups: groups, metadata: metadata)
         }
     }
 
@@ -91,10 +102,13 @@ public struct CatalogStore: Sendable {
     }
 
     /// Inserts a new finding and returns it, or bumps last_sync of the identical finding and returns nil.
-    /// fingerprint = sha256hex("<type>|<rule or empty>|<cell storage key>|<message>").
+    /// fingerprint = sha256hex("<type>|<rule or empty>|<cell storage key>|<message>"), plus "|<discriminator>" when one is
+    /// given. SyncEngine's findings of one outside change pass what tells it from the next change of the same row (the new
+    /// content hash, or the id of the observation that disappeared), so a change after an ack is a new finding.
     @discardableResult
-    public func upsertFinding(type: FindingType, rule: RuleID?, cell: CellKey, message: String, syncId: Int64, in db: Database) throws -> FindingRecord? {
-        let fingerprint = Self.fingerprint(type: type, rule: rule, cell: cell, message: message)
+    public func upsertFinding(type: FindingType, rule: RuleID?, cell: CellKey, message: String, discriminator: String? = nil,
+                              syncId: Int64, in db: Database) throws -> FindingRecord? {
+        let fingerprint = Self.fingerprint(type: type, rule: rule, cell: cell, message: message, discriminator: discriminator)
         if let existing = try Int64.fetchOne(db, sql: "SELECT id FROM finding WHERE fingerprint = ?", arguments: [fingerprint]) {
             try db.execute(sql: "UPDATE finding SET last_sync = ? WHERE id = ?", arguments: [syncId, existing])
             return nil
@@ -115,8 +129,28 @@ public struct CatalogStore: Sendable {
 
     // MARK: - Shared queries
 
-    static func fingerprint(type: FindingType, rule: RuleID?, cell: CellKey, message: String) -> String {
-        let input = [type.rawValue, rule?.rawValue ?? "", cell.storageKey, message].joined(separator: "|")
+    /// The stored versions (metadata_version) and the live LOCALIZATION observations of every owner still in the catalog.
+    static func metadata(_ db: Database, texts: [LocalizationRow], known: Set<LocalizationOwner>) throws -> [LocalizationOwner: OwnerMetadata] {
+        var versions: [LocalizationOwner: [MetadataVersion]] = [:]
+        for row in try Row.fetchAll(db, sql: "SELECT asc_id, owner_key, number, state FROM metadata_version") {
+            let key: String = row["owner_key"]
+            guard let owner = LocalizationOwner(key: key) else {
+                throw StoreError.corruptValue(table: "metadata_version", column: "owner_key", value: key)
+            }
+            versions[owner, default: []].append(MetadataVersion(ascId: row["asc_id"], owner: owner, number: row["number"],
+                                                                state: MetadataVersionState(row["state"] as String)))
+        }
+        let textsByOwner = Dictionary(grouping: texts, by: \.owner)
+        var result: [LocalizationOwner: OwnerMetadata] = [:]
+        for owner in Set(versions.keys).union(textsByOwner.keys) where known.contains(owner) {
+            result[owner] = OwnerMetadata(owner: owner, versions: versions[owner] ?? [], localizations: textsByOwner[owner] ?? [])
+        }
+        return result
+    }
+
+    static func fingerprint(type: FindingType, rule: RuleID?, cell: CellKey, message: String, discriminator: String? = nil) -> String {
+        let parts = [type.rawValue, rule?.rawValue ?? "", cell.storageKey, message] + (discriminator.map { [$0] } ?? [])
+        let input = parts.joined(separator: "|")
         return SHA256.hash(data: Data(input.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 

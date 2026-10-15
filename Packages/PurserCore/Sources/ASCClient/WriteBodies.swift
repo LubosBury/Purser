@@ -198,6 +198,10 @@ package enum WriteBodies {
         case let .replacePromoPrices(id, prices): return replacePromoPrices(ascId: id, prices: prices)
         case let .replaceIAPSchedule(s): return replaceIAPSchedule(s)
         case .deleteRegularPrice, .deleteIntro, .deletePromo: return nil
+        case .setLocalization:
+            preconditionFailure("setLocalization is resolved by the Executor")
+        case let .createMetadataVersion(owner):
+            return createMetadataVersion(owner: owner)
         }
     }
 }
@@ -214,6 +218,9 @@ package enum WritePaths {
         case let .replacePromoPrices(id, _): return ("PATCH", "/v1/subscriptionPromotionalOffers/\(id)")
         case let .deletePromo(id): return ("DELETE", "/v1/subscriptionPromotionalOffers/\(id)")
         case .replaceIAPSchedule: return ("POST", "/v1/inAppPurchasePriceSchedules")
+        case let .createMetadataVersion(owner): return metadataVersion(owner.kind)
+        case .setLocalization:
+            preconditionFailure("setLocalization is resolved by the Executor")
         }
     }
 }

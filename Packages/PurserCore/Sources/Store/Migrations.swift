@@ -50,10 +50,23 @@ enum Migrations {
     CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit_event BEGIN SELECT RAISE(ABORT, 'audit_event is append-only'); END;
     """
 
+    /// Migration v2: subscription groups and the versions of every localization owner (the result of the
+    /// owner's last complete read). The texts are observations of kind LOCALIZATION. Never edit: add v3 instead.
+    static let v2 = """
+    CREATE TABLE subscription_group (asc_id TEXT PRIMARY KEY, reference_name TEXT NOT NULL,
+      first_sync INTEGER NOT NULL REFERENCES sync_run(id), last_sync INTEGER NOT NULL REFERENCES sync_run(id));
+    CREATE TABLE metadata_version (asc_id TEXT PRIMARY KEY, owner_key TEXT NOT NULL, number INTEGER NOT NULL, state TEXT NOT NULL,
+      last_sync INTEGER NOT NULL REFERENCES sync_run(id));
+    CREATE INDEX metadata_version_owner ON metadata_version(owner_key);
+    """
+
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1") { db in
             try db.execute(sql: v1)
+        }
+        migrator.registerMigration("v2") { db in
+            try db.execute(sql: v2)
         }
         return migrator
     }

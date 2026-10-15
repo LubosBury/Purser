@@ -62,6 +62,7 @@ enum PlanFormatting {
         case .iap: return "One-time purchase"
         case .fix: return "Repair"
         case .withdraw: return "Rollback"
+        case .localization: return "Localization"
         }
     }
 

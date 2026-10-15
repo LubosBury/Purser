@@ -21,24 +21,42 @@ struct A3SingleApplyingRule: PlanRule {
 }
 
 /// A4 (draft-time part): the first item of every cell must start from the cell state in the current snapshot.
+/// A text item is compared with LocalizationSemantics.matches, as the Reconciler compares it: the same effective text, and
+/// a text planned into a version in preparation needs that same version (by id), still editable. So its version going from
+/// PREPARE_FOR_SUBMISSION to READY_FOR_REVIEW (both editable) does not block, while a version that went into review, or
+/// was approved and followed by a new one (even one holding a copy of its texts), does. A text planned without a version
+/// in preparation does not block on a version the plan created, which holds the texts Apple copied into it while the Live
+/// text stays. Every other item is compared exactly.
 struct A4FreshBaseRule: PlanRule {
     let id: RuleID = "A4"
     func evaluate(_ context: PolicyContext) -> [Verdict] {
         var first: [CellKey: PlannedItem] = [:]
         for item in context.items where (first[item.cell]?.seq ?? Int.max) > item.seq { first[item.cell] = item }
-        let stale = first.values.filter { $0.before != context.snapshot.cellState($0.cell, on: context.today) }
+        let stale = first.values.filter { !Self.startsFromSnapshot($0, context.snapshot.cellState($0.cell, on: context.today)) }
             .map(\.cell.storageKey).sorted()
         guard !stale.isEmpty else { return [] }
         return [.block(id, .plan, nil, "The plan does not match the current snapshot (\(Format.list(stale, limit: 5))); do a Re-plan.")]
     }
+
+    static func startsFromSnapshot(_ item: PlannedItem, _ live: CellState) -> Bool {
+        if item.before == live { return true }
+        guard case .setLocalization = item.payload else { return false }
+        return LocalizationSemantics.matches(live: live, expected: item.before)
+    }
 }
 
-/// A5: Purser writes only to products in a writable state.
+/// A5: Purser writes only to products in a writable state. A subscription group has no product state: its texts need only
+/// the group in the catalog.
 struct A5ProductStateRule: PlanRule {
     let id: RuleID = "A5"
     func evaluate(_ context: PolicyContext) -> [Verdict] {
-        let products = Set(context.items.map(\.cell.productAscId))
-        return products.sorted().compactMap { ascId -> Verdict? in
+        let owners = context.items.compactMap(\.cell.localizationOwner)
+        let groups = Set(owners.filter { $0.kind == .group }.map(\.ascId))
+        let missingGroups = groups.sorted().filter { context.snapshot.groups[$0] == nil }.map {
+            Verdict.block(id, .plan, nil, "The subscription group \($0) is not in the catalog.")
+        }
+        let products = Set(context.items.map(\.cell.productAscId)).subtracting(groups)
+        return missingGroups + products.sorted().compactMap { ascId -> Verdict? in
             let state = context.snapshot.subscriptions[ascId]?.state ?? context.snapshot.iaps[ascId]?.state
             guard let state else { return .block(id, .plan, nil, "The product \(ascId) is not in the catalog.") }
             guard !ProductState.writable.contains(state) else { return nil }

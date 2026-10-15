@@ -17,6 +17,12 @@ public struct ToolResult: Hashable, Sendable, Codable {
 public struct MCPStdioServer: Sendable {
     public static let protocolVersion = "2025-06-18"
     private static let supportedVersions: Set<String> = ["2025-06-18", "2025-03-26", "2024-11-05"]
+    /// What the client is told in `initialize`, before it reads a tool description.
+    static let instructions = "Purser reviews and applies App Store Connect prices and localized texts for one app, and creates and clones "
+        + "its subscriptions and in-app purchases. Call purser_status first: the app must be running, unlocked and have a workspace "
+        + "open. Plans are built as Drafts and reviewed with get_plan before apply_plan; preview_new_products and preview_clone show "
+        + "what create_products and clone_products would write. App Store Connect has no sandbox: a Product ID can never be used "
+        + "again, and a version Purser creates cannot be deleted through the API."
 
     private let serverVersion: String
     private let tools: [ToolDefinition]
@@ -46,7 +52,7 @@ public struct MCPStdioServer: Sendable {
                 "protocolVersion": .string(version),
                 "capabilities": ["tools": ["listChanged": false]],
                 "serverInfo": ["name": "purser", "title": "Purser Pricing", "version": .string(serverVersion)],
-                "instructions": "Purser reviews and applies App Store Connect prices for one app. Call purser_status first: the app must be running, unlocked and have a workspace open. Plans are built as Drafts and reviewed with get_plan before apply_plan; App Store Connect has no sandbox.",
+                "instructions": .string(Self.instructions),
             ])
         case "ping":
             return Self.result(id: id, .object([:]))

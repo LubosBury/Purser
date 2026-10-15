@@ -7,8 +7,15 @@ import ASCClient
 import Catalog
 import Policy
 import Planner
+import PurserSecurity
 @testable import Executor
 import PurserTestSupport
+
+/// Records the reason of every Touch ID prompt and allows it.
+private struct RecordingGate: BiometricGate {
+    let reasons = Locked<[String]>([])
+    func authenticate(reason: String) async throws { reasons.update { $0.append(reason) } }
+}
 
 private struct FixedRule: PlanRule {
     let id: RuleID
@@ -49,6 +56,16 @@ struct ExecutorApplyTests {
         #expect(plan.productStates == ["sub-y": .approved])
         #expect(plan.heartbeatAt != nil)
         #expect(plan.reason == "Synthetic test run approved by the owner")
+    }
+
+    @Test func touchIDAsksToApplyOrResumeAPlanOfAnyKind() async throws {
+        let h = try await ExecutorHarness.make()
+        let gate = RecordingGate()
+        let (planId, _) = try await Scenarios.plan(h, cells: [Scenarios.replaceScheduledRegular(territory: "CZE")])
+        _ = try await h.makeExecutor(gate: gate).apply(planId: planId, confirm: Confirm.accept)
+        let paused = try h.insertPlan(items: [], state: .applying, pause: .user)
+        _ = try? await h.makeExecutor(gate: gate).resume(planId: paused, confirm: Confirm.accept)
+        #expect(gate.reasons.value == ["Apply a plan to FruitJar", "Resume a plan on FruitJar"])
     }
 
     @Test func httpSentAndInFlightAreCommittedBeforeEveryRequest() async throws {
@@ -109,6 +126,41 @@ struct ExecutorApplyTests {
             #expect(Reconciler.matches(live: live.cellState(item.cell, on: h.today), expected: item.target, today: h.today),
                     "the K9 placeholder id in \(item.cell) must match the created row")
         }
+    }
+
+    private static let cloneTitle = "Clone com.example.c of com.example.s: regular prices (apply first)"
+
+    @Test(arguments: [nil, "", "   "] as [String?])
+    func applyingWithoutAConfirmationReasonKeepsTheDraftsTitle(reason: String?) async throws {
+        let h = try await ExecutorHarness.make()
+        let (planId, _) = try await Scenarios.plan(h, cells: [Scenarios.replaceScheduledRegular(territory: "CZE")])
+        try h.updatePlan(planId) { $0.reason = Self.cloneTitle }
+        let silent = ConfirmationResponse(accepted: true, acknowledgedExclusions: true, typedAppName: nil, reason: reason, checkedRiskClasses: [])
+        #expect(try await h.makeExecutor().apply(planId: planId, confirm: Confirm.responding(silent)) == .scheduled)
+        #expect(try h.store.plan(id: planId)?.reason == Self.cloneTitle)
+        #expect(CloneDrafts.openDrafts(in: try h.store.plans(states: nil)) == [Self.cloneTitle: planId])
+    }
+
+    @Test func applyingWithAConfirmationReasonRecordsIt() async throws {
+        let h = try await ExecutorHarness.make()
+        let (planId, _) = try await Scenarios.plan(h, cells: [Scenarios.replaceScheduledRegular(territory: "CZE")])
+        try h.updatePlan(planId) { $0.reason = Self.cloneTitle }
+        #expect(try await h.makeExecutor().apply(planId: planId, confirm: Confirm.accept) == .scheduled)
+        #expect(try h.store.plan(id: planId)?.reason == "Synthetic test run approved by the owner")
+    }
+
+    @Test(arguments: [nil, "", "   "] as [String?])
+    func resumingWithoutAConfirmationReasonKeepsThePlansTitle(reason: String?) async throws {
+        let h = try await ExecutorHarness.make()
+        let (planId, _) = try await Scenarios.plan(h, cells: [Scenarios.replaceScheduledRegular(territory: "CZE")], state: .applying)
+        try h.updatePlan(planId) { $0.reason = Self.cloneTitle; $0.pauseReason = .user }
+        // A new warning changes the verdict hash, so the resume asks for a confirmation again.
+        let executor = h.makeExecutor(policy: PolicyEngine(planRules: [FixedRule(id: "R9", severity: .warn)], invariants: []))
+        let silent = ConfirmationResponse(accepted: true, acknowledgedExclusions: true, typedAppName: nil, reason: reason, checkedRiskClasses: [])
+        #expect(try await executor.resume(planId: planId, confirm: Confirm.responding(silent)) == .scheduled)
+        let plan = try #require(try h.store.plan(id: planId))
+        #expect(plan.verdicts.map(\.rule) == ["R9"])
+        #expect(plan.reason == Self.cloneTitle)
     }
 
     @Test func declinedConfirmationReturnsToDraftWithZeroWrites() async throws {

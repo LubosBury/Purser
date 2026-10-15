@@ -1,7 +1,8 @@
 import Foundation
 
 public enum PlanOrigin: String, Codable, Sendable {
-    case importTable = "IMPORT", regular = "REGULAR", intro = "INTRO", promo = "PROMO", iap = "IAP", fix = "FIX", withdraw = "WITHDRAW"
+    case importTable = "IMPORT", regular = "REGULAR", intro = "INTRO", promo = "PROMO", iap = "IAP", fix = "FIX", withdraw = "WITHDRAW",
+         localization = "L10N"
 }
 
 public enum PlanState: String, Codable, Sendable, CaseIterable {
@@ -24,7 +25,8 @@ public enum ConfirmationLevel: Int, Codable, Sendable, Comparable {
 }
 
 public enum ItemOp: String, Codable, Sendable {
-    case post = "POST", delete = "DELETE", patchEnd = "PATCH_END", patchPrices = "PATCH_PRICES", scheduleReplace = "SCHEDULE_REPLACE"
+    case post = "POST", delete = "DELETE", patchEnd = "PATCH_END", patchPrices = "PATCH_PRICES", scheduleReplace = "SCHEDULE_REPLACE",
+         setText = "SET_TEXT"
 }
 
 public enum ItemState: String, Codable, Sendable, CaseIterable {
@@ -111,6 +113,19 @@ public struct NewIAPSchedule: Hashable, Sendable, Codable {
     }
 }
 
+/// One text write. Ids known at planning time are filled in; nil ids are resolved by the Executor right before the write.
+public struct SetLocalization: Hashable, Sendable, Codable {
+    public var owner: LocalizationOwner
+    public var locale: String
+    public var text: LocalizationText          // full desired text; nil fields are not sent
+    public var localizationId: String?         // set: PATCH this localization
+    public var versionId: String?              // set (and localizationId nil): POST into this version
+    // both nil: the version is created by a predecessor createMetadataVersion item of the same owner in this plan (L3)
+    public init(owner: LocalizationOwner, locale: String, text: LocalizationText, localizationId: String?, versionId: String?) {
+        self.owner = owner; self.locale = locale; self.text = text; self.localizationId = localizationId; self.versionId = versionId
+    }
+}
+
 /// Exactly one ASC request.
 public enum WritePayload: Hashable, Sendable, Codable {
     case createRegularPrice(NewRegularPrice)
@@ -122,14 +137,19 @@ public enum WritePayload: Hashable, Sendable, Codable {
     case replacePromoPrices(ascId: String, prices: [NewPromoPrice])
     case deletePromo(ascId: String)
     case replaceIAPSchedule(NewIAPSchedule)
+    /// One localized text. The Executor resolves its request (PATCH or POST) right before the write.
+    case setLocalization(SetLocalization)
+    /// L3: a new version of an approved owner; its texts are setLocalization items that depend on it.
+    case createMetadataVersion(owner: LocalizationOwner)
 
     public var op: ItemOp {
         switch self {
-        case .createRegularPrice, .createIntro, .createPromo: return .post
+        case .createRegularPrice, .createIntro, .createPromo, .createMetadataVersion: return .post
         case .deleteRegularPrice, .deleteIntro, .deletePromo: return .delete
         case .endIntro: return .patchEnd
         case .replacePromoPrices: return .patchPrices
         case .replaceIAPSchedule: return .scheduleReplace
+        case .setLocalization: return .setText
         }
     }
 }

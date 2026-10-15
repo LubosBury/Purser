@@ -1,25 +1,43 @@
 import Foundation
 import GRDB
 import Testing
-import Store
+@testable import Store
 import PurserTestSupport
 
 @Suite struct MigrationTests {
-    @Test func migrationV1CreatesEveryTable() throws {
+    @Test func migrationsCreateEveryTable() throws {
         let database = try WorkspaceDatabase.inMemory()
         let tables = try database.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'grdb_%' ORDER BY name")
         }
-        #expect(tables == ["audit_event", "finding", "item", "observation", "offer_code_registry", "plan",
-                           "price_point", "product", "sync_run", "territory", "workspace"])
+        #expect(tables == ["audit_event", "finding", "item", "metadata_version", "observation", "offer_code_registry", "plan",
+                           "price_point", "product", "subscription_group", "sync_run", "territory", "workspace"])
         let indexes = try database.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name")
         }
-        #expect(indexes == ["item_asc_id", "item_natural_key", "observation_cell", "observation_identity", "price_point_lookup"])
+        #expect(indexes == ["item_asc_id", "item_natural_key", "metadata_version_owner", "observation_cell", "observation_identity",
+                            "price_point_lookup"])
         let triggers = try database.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name")
         }
         #expect(triggers == ["audit_no_delete", "audit_no_update"])
+    }
+
+    @Test func migrationV2UpgradesADatabaseMadeByV1() throws {
+        let queue = try DatabaseQueue()
+        var v1Only = DatabaseMigrator()
+        v1Only.registerMigration("v1") { db in try db.execute(sql: Migrations.v1) }
+        try v1Only.migrate(queue)
+        try queue.write { db in
+            try db.execute(sql: "INSERT INTO sync_run (trigger, status, started_at) VALUES ('manual', 'complete', '2026-10-09T12:00:00.000Z')")
+        }
+        try Migrations.migrator.migrate(queue)
+        #expect(try queue.read { db in try Migrations.migrator.appliedMigrations(db) } == ["v1", "v2"])
+        try queue.write { db in
+            try db.execute(sql: "INSERT INTO subscription_group (asc_id, reference_name, first_sync, last_sync) VALUES ('7000000001', 'Fruit Premium', 1, 1)")
+            try db.execute(sql: "INSERT INTO metadata_version (asc_id, owner_key, number, state, last_sync) VALUES ('sver-1', 'S|6500000001', 1, 'APPROVED', 1)")
+        }
+        #expect(try queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sync_run") } == 1)
     }
 
     @Test func auditEventRejectsUpdateAndDelete() throws {

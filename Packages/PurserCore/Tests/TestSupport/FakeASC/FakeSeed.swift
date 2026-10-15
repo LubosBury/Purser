@@ -8,6 +8,8 @@ public enum FakeSeed {
 
     /// FruitJar: sub-y (yearly, APPROVED), sub-m (monthly, READY_TO_SUBMIT), sub-n (yearly, MISSING_METADATA, no prices),
     /// iap-life (lifetime). Six territories, price points "pp-<product>-<territory>-<i>" priced 0.99 + i.
+    /// Texts: sub-y has a live version 1 in en-US and cs, sub-n only version 1 in PREPARE_FOR_SUBMISSION (en-US),
+    /// iap-life and the group grp-1 a live version 1 in en-US; sub-m has no version.
     public static func fruitJar() -> FakeModel {
         let territories: [TerritoryCode: CurrencyCode] = ["USA": "USD", "CZE": "CZK", "DEU": "EUR", "FRA": "EUR", "GBR": "GBP", "JPN": "JPY"]
         let all = Set(territories.keys)
@@ -44,7 +46,25 @@ public enum FakeSeed {
             iaps: [FakeIAP(id: "iap-life", productId: "com.example.fruitjar.lifetime", name: "Lifetime",
                            type: "NON_CONSUMABLE", state: .approved)],
             iapSchedules: [FakeIAPSchedule(id: "sched-0", iapId: "iap-life", baseTerritory: "USA", manualPrices: [
-                FakeIAPManualPrice(id: "iapprice-0", territory: "USA", pricePointId: "pp-iap-life-USA-29", startDate: nil, endDate: nil)])])
+                FakeIAPManualPrice(id: "iapprice-0", territory: "USA", pricePointId: "pp-iap-life-USA-29", startDate: nil, endDate: nil)])],
+            versions: [
+                FakeVersion(id: "ver-sub-y-1", owner: .subscription("sub-y"), number: 1, state: .approved),
+                FakeVersion(id: "ver-sub-n-1", owner: .subscription("sub-n"), number: 1, state: .prepareForSubmission),
+                FakeVersion(id: "ver-iap-life-1", owner: .iap("iap-life"), number: 1, state: .approved),
+                FakeVersion(id: "ver-grp-1-1", owner: .group("grp-1"), number: 1, state: .approved),
+            ],
+            localizations: [
+                FakeLocalization(id: "loc-sub-y-1-en-US", versionId: "ver-sub-y-1", locale: "en-US",
+                                 text: LocalizationText(name: "Yearly", description: "Every fruit, all year")),
+                FakeLocalization(id: "loc-sub-y-1-cs", versionId: "ver-sub-y-1", locale: "cs",
+                                 text: LocalizationText(name: "Ročně", description: "Všechno ovoce na celý rok")),
+                FakeLocalization(id: "loc-sub-n-1-en-US", versionId: "ver-sub-n-1", locale: "en-US",
+                                 text: LocalizationText(name: "Yearly New", description: "Fresh fruit, all year")),
+                FakeLocalization(id: "loc-iap-life-1-en-US", versionId: "ver-iap-life-1", locale: "en-US",
+                                 text: LocalizationText(name: "Lifetime", description: "Every fruit, forever")),
+                FakeLocalization(id: "loc-grp-1-1-en-US", versionId: "ver-grp-1-1", locale: "en-US",
+                                 text: LocalizationText(name: "Premium", customAppName: "FruitJar")),
+            ])
     }
 
     /// Wide catalog for volume tests: territories T001...T<n> (USD), subscriptions sub-w1...sub-w<k> (yearly,

@@ -24,7 +24,7 @@ extension PlanSpec {
         switch unwrapped {
         case let .intro(spec): return spec.canary
         case let .importTable(spec): return spec.canary
-        case .regular, .promo, .iap, .fix, .withdraw: return false
+        case .regular, .promo, .iap, .fix, .withdraw, .localization: return false
         }
     }
 }

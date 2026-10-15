@@ -30,6 +30,15 @@ private actor Calls {
         #expect(answer["result"]?["capabilities"]?["tools"] != nil)
     }
 
+    @Test func initializeTellsTheClientThatPurserWritesTextsAndProductsToo() async throws {
+        let answer = try await reply(server(), #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}"#)
+        let instructions = try #require(answer["result"]?["instructions"]?.stringValue)
+        #expect(instructions.contains("prices and localized texts"))
+        #expect(instructions.contains("creates and clones"))
+        #expect(instructions.contains("preview_clone"))
+        #expect(instructions.contains("a Product ID can never be used again"))
+    }
+
     @Test func initializeFallsBackToItsOwnVersionForAnUnknownOne() async throws {
         let answer = try await reply(server(), #"{"jsonrpc":"2.0","id":"a","method":"initialize","params":{"protocolVersion":"1999-01-01"}}"#)
         #expect(answer["id"] == "a")
@@ -88,7 +97,7 @@ private actor Calls {
     @Test func everyToolNameHasADefinitionAndWritesAreMarked() {
         #expect(Set(ToolCatalog.all.map(\.name)).count == MCPToolName.allCases.count)
         let writes = Set(ToolCatalog.all.filter { $0.access == .ascWrite }.map(\.name))
-        #expect(writes == ["apply_plan", "resume_plan", "create_products"])
+        #expect(writes == ["apply_plan", "resume_plan", "create_products", "clone_products"])
         #expect(ToolCatalog.definition(named: "nope") == nil)
     }
 

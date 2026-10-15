@@ -1,0 +1,3 @@
+{"data": {"type": "subscriptionLocalizations",
+  "attributes": {"locale": "{{LOCALE}}", "name": "{{NAME}}", "description": "{{DESCRIPTION}}"},
+  "relationships": {"version": {"data": {"type": "subscriptionVersions", "id": "{{VERSION}}"}}}}}

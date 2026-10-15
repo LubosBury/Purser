@@ -124,15 +124,15 @@ extension FakeASC {
         if let id = capture(c, ["v1", "subscriptionGroups", "*", "subscriptions"]) {
             let subs = model.subscriptions.filter { $0.groupId == id }
             return ok(page(subs.enumerated().map { index, sub in
-                (resource("subscriptions", sub.id, attributes: [
-                    "name": .string(sub.name), "productId": .string(sub.productId), "state": .string(sub.state.rawValue),
-                    "subscriptionPeriod": .string(sub.period.rawValue), "groupLevel": .int(index + 1), "familySharable": .bool(false),
-                ]), [:])
+                (subscriptionResource(sub, level: sub.groupLevel ?? index + 1), [:])
             }, url: url, query: query))
         }
         if let id = capture(c, ["v1", "subscriptions", "*", "subscriptionAvailability"]) {
-            guard model.subscriptions.contains(where: { $0.id == id }) else { throw notFound() }
-            return ok(single(resource("subscriptionAvailabilities", "avail-\(id)", attributes: ["availableInNewTerritories": .bool(false)]),
+            // A subscription created without an availability has none until a POST makes one.
+            guard let sub = model.subscriptions.first(where: { $0.id == id }),
+                  !sub.availableTerritories.isEmpty || model.availabilityInNew[id] != nil else { throw notFound() }
+            return ok(single(resource("subscriptionAvailabilities", "avail-\(id)",
+                                      attributes: ["availableInNewTerritories": .bool(model.availabilityInNew[id] ?? false)]),
                              url: url.absoluteString))
         }
         if let id = capture(c, ["v1", "subscriptionAvailabilities", "*", "availableTerritories"]) {
@@ -172,10 +172,7 @@ extension FakeASC {
         }
         if let id = capture(c, ["v1", "apps", "*", "inAppPurchasesV2"]) {
             guard id == model.app.id else { throw notFound() }
-            return ok(page(model.iaps.map {
-                (resource("inAppPurchases", $0.id, attributes: ["name": .string($0.name), "productId": .string($0.productId),
-                                                                "inAppPurchaseType": .string($0.type), "state": .string($0.state.rawValue)]), [:])
-            }, url: url, query: query))
+            return ok(page(model.iaps.map { (iapResource($0), [:]) }, url: url, query: query))
         }
         if let id = capture(c, ["v2", "inAppPurchases", "*", "iapPriceSchedule"]) {
             guard let schedule = model.iapSchedules.first(where: { $0.iapId == id }) else { throw notFound() }
@@ -200,6 +197,8 @@ extension FakeASC {
             return ok(page(points.map { (pricePointResource($0), ["territories|\($0.territory.rawValue)": territoryResource($0.territory)]) },
                            url: url, query: query))
         }
+        if let reply = try productAssetRead(c, url: url, query: query) { return reply }
+        if let reply = try handleMetadataRead(c, url: url, query: query) { return reply }
         throw notFound()
     }
 }

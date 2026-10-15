@@ -21,6 +21,10 @@ public enum Reconciler {
             return promo(l, e)
         case let (.iapSchedule(l), .iapSchedule(e)):
             return schedule(l, e)
+        case (.localization, .localization):
+            return LocalizationSemantics.matches(live: live, expected: expected)
+        case let (.metadataVersion(l), .metadataVersion(e)):
+            return l == e
         default:
             return false
         }
@@ -134,6 +138,10 @@ public enum Reconciler {
             guard let schedule, schedule.iapId == s.iapId, schedule.baseTerritory == s.baseTerritory else { return false }
             return manualSet(schedule.manualPrices.map { ($0.territory, $0.pricePointId, $0.startDate, $0.endDate) })
                 == manualSet(s.manualPrices.map { ($0.territory, $0.pricePointId, $0.startDate, $0.endDate) })
+        case let (.setLocalization(s), .localization):
+            return LocalizationSemantics.isSatisfied(s, live: live)
+        case (.createMetadataVersion, .metadataVersion):
+            return LocalizationSemantics.versionExists(live)
         default:
             return false
         }
@@ -150,6 +158,12 @@ public enum Reconciler {
             return offer?.offerCode == o.offerCode ? offer?.ascId : nil
         case (.replaceIAPSchedule, .iapSchedule(let schedule)):
             return schedule?.scheduleId
+        case let (.setLocalization(s), .localization(_, pending, _)):
+            // The item's asc_id is the localization's id, for a PATCH and a POST alike.
+            return LocalizationSemantics.isSatisfied(s, live: live) ? pending?.ascId : nil
+        case (.createMetadataVersion, .metadataVersion(let version)):
+            // The item's asc_id is the version's id.
+            return version?.state.role == .editable ? version?.ascId : nil
         default:
             return nil
         }
@@ -195,6 +209,14 @@ public enum Reconciler {
             guard var schedule, schedule.scheduleId == nil else { return state }
             schedule.scheduleId = ascId
             return .iapSchedule(schedule)
+        case let .localization(live, pending, version):
+            guard var pending, pending.ascId.isEmpty else { return state }
+            pending.ascId = ascId
+            return .localization(live: live, pending: pending, pendingVersion: version)
+        case let .metadataVersion(version):
+            guard var version, version.ascId.isEmpty else { return state }
+            version.ascId = ascId
+            return .metadataVersion(version)
         }
     }
 }

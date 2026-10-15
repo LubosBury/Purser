@@ -61,17 +61,23 @@ package struct Preflight: Sendable {
             throw ExecutorError.anotherPlanApplying(other.id)
         }
 
-        // A4: targeted re-sync of affected products.
+        // A4: targeted re-sync of affected products. Only the scopes the plan's cells need must be complete: a failed text
+        // read does not stop a price plan, a failed price read does not stop a text plan.
         let products = Set(items.map { $0.item.cell.productAscId })
         let result = try await sync.sync(trigger: .preflight, scope: .products(products))
-        guard result.status == .complete else { throw ExecutorError.syncIncomplete(result.status) }
+        guard result.isComplete(for: items.map(\.item.cell)) else { throw ExecutorError.syncIncomplete(result.status) }
         guard let snapshot = try catalog.latestSnapshot() else { throw ExecutorError.noSnapshot }
         let today = CalendarDate.today(now: now())
 
-        // A5: product states, stored into the plan by the Executor.
+        // A5: product states, stored into the plan by the Executor. A subscription group has no product state; its texts
+        // need only the group in the catalog.
         var states: [String: ProductState] = [:]
         var verdicts: [Verdict] = []
-        for product in products.sorted() {
+        let groups = Set(items.compactMap(\.item.cell.localizationOwner).filter { $0.kind == .group }.map(\.ascId))
+        for group in groups.sorted() where snapshot.groups[group] == nil {
+            verdicts.append(Verdict(rule: "A5", severity: .block(.plan), cell: nil, message: "Subscription group \(group) was not found in App Store Connect"))
+        }
+        for product in products.subtracting(groups).sorted() {
             guard let state = snapshot.subscriptions[product]?.state ?? snapshot.iaps[product]?.state else {
                 verdicts.append(Verdict(rule: "A5", severity: .block(.plan), cell: nil, message: "Product \(product) was not found in App Store Connect"))
                 continue
@@ -128,7 +134,14 @@ package struct Preflight: Sendable {
                         changes.append(ItemChange(seq: stored.item.seq, to: .done, ascId: ascId ?? stored.ascId, note: "preflight 2b: target found"))
                         index = ordered[(i + 1)...].firstIndex { $0.state == .pending || $0.state == .inFlight }
                     case .unchanged:
-                        changes.append(ItemChange(seq: stored.item.seq, to: .pending, ascId: nil, note: "preflight 2b: not applied, back to Pending"))
+                        if case .createMetadataVersion = stored.item.payload {
+                            // L3: the POST may have created a version this read does not show yet. Apple cannot delete a
+                            // version and refuses a second one, so it is never sent again; the texts wait for a replan.
+                            changes.append(ItemChange(seq: stored.item.seq, to: .stale, ascId: nil,
+                                                      note: "preflight 2b: the version may already exist although this read does not show it; re-sync and replan"))
+                        } else {
+                            changes.append(ItemChange(seq: stored.item.seq, to: .pending, ascId: nil, note: "preflight 2b: not applied, back to Pending"))
+                        }
                     case .diverged:
                         changes.append(ItemChange(seq: stored.item.seq, to: .stale, ascId: nil, note: "preflight 2b: live state differs from before and target"))
                     }

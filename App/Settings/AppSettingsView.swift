@@ -104,7 +104,7 @@ struct AppSettingsView: View {
                     get: { mcpBridge.isEnabled },
                     set: { mcpBridge.setEnabled($0) }))
                     .toggleStyle(.checkbox)
-                Toggle("Apply plans and create products without Touch ID", isOn: Binding(
+                Toggle("Apply plans and create or clone products without Touch ID", isOn: Binding(
                     get: { mcpBridge.writesWithoutTouchID },
                     set: { allowed in Task { mcpMessage = await mcpBridge.setWritesWithoutTouchID(allowed) } }))
                     .toggleStyle(.checkbox)
@@ -112,7 +112,7 @@ struct AppSettingsView: View {
                 if mcpBridge.writesWithoutTouchID {
                     HStack(alignment: .firstTextBaseline, spacing: PurserSpacing.space2) {
                         PurserBadge(text: "WARN", kind: .warning)
-                        Text("Claude can change live prices without you confirming at this Mac. Price changes of approved products take effect without App Review.")
+                        Text("Claude can apply plans (prices and texts, including new versions App Store Connect cannot delete) and create and clone products (a Product ID can never be used again) without you confirming at this Mac. Price changes of approved products take effect without App Review.")
                             .font(PurserFont.callout)
                             .foregroundStyle(PurserColor.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)

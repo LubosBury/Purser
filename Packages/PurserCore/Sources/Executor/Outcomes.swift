@@ -11,7 +11,8 @@ public enum ItemEffectiveness {
     /// Effective as soon as verify confirmed it: promo, IAP and deletes always; POST and PATCH_END only once their date passed.
     public static func immediately(_ item: PlannedItem, today: CalendarDate) -> Bool {
         switch item.payload {
-        case .createPromo, .replacePromoPrices, .deletePromo, .replaceIAPSchedule, .deleteRegularPrice, .deleteIntro:
+        case .createPromo, .replacePromoPrices, .deletePromo, .replaceIAPSchedule, .deleteRegularPrice, .deleteIntro, .setLocalization,
+             .createMetadataVersion:
             return true
         case let .createRegularPrice(p):
             return dayAfter(p.startDate, today)

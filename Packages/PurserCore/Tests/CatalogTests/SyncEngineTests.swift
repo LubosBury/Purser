@@ -107,7 +107,8 @@ private struct ObservationRow: Equatable {
         #expect(try h.observations("INTRO").count == 1)
         #expect(try h.observations("PROMO").count == 1)
         #expect(try h.observations("IAP_SCHEDULE").map(\.ascId) == ["6600000001"])
-        #expect(try h.syncRun(1)?.scopes == ["6500000001|INTRO", "6500000001|PRICE", "6500000001|PROMO", "6600000001|IAP_SCHEDULE"])
+        #expect(try h.syncRun(1)?.scopes == ["6500000001|INTRO", "6500000001|LOCALIZATION", "6500000001|PRICE", "6500000001|PROMO",
+                                             "6600000001|IAP_SCHEDULE", "6600000001|LOCALIZATION", "7000000001|LOCALIZATION"])
 
         let snapshot = try #require(try h.catalog.latestSnapshot())
         #expect(snapshot.syncId == 1)
@@ -309,7 +310,8 @@ private struct ObservationRow: Equatable {
         #expect(!calls.contains("iapPriceSchedule:6600000001"))
         #expect(calls.contains("regularPrices:6500000001"))
         #expect(result.requestCount == calls.count)
-        #expect(try h.syncRun(2)?.scopes == ["6500000001|INTRO", "6500000001|PRICE", "6500000001|PROMO"])
+        #expect(try h.syncRun(2)?.scopes == ["6500000001|INTRO", "6500000001|LOCALIZATION", "6500000001|PRICE", "6500000001|PROMO"])
+        #expect(!calls.contains("metadata:G|7000000001"))
         // The IAP schedule is still shown from sync 1.
         #expect(try h.catalog.latestSnapshot()?.iapSchedules["6600000001"] != nil)
     }
@@ -344,6 +346,19 @@ private struct ObservationRow: Equatable {
         #expect(h.reader.calls.filter { $0 == "pricePoints:6500000001" }.count == 3)
     }
 
+    @Test func aSecondChangeOfAnIAPScheduleAfterAnAckIsANewFinding() async throws {
+        let h = try Harness()
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        h.reader.update { $0.schedules["6600000001"] = Sample.schedule(prices: [("USA", "59.99")]) }
+        let first = try #require(try await h.engine.sync(trigger: .manual, scope: .all).newFindings.first)
+        try h.catalog.ack(findingId: first.id, reason: "Changed on purpose in App Store Connect", at: h.clock.now())
+        h.reader.update { $0.schedules["6600000001"] = Sample.schedule(prices: [("USA", "69.99")]) }
+        let second = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(second.newFindings.map(\.message) == ["IAP price schedule 6600000001 changed outside Purser"])
+        #expect(second.newFindings.first?.id != first.id)
+        #expect(try h.catalog.findings(includeAcked: false).map(\.id) == second.newFindings.map(\.id))
+    }
+
     @Test func iapScheduleChangeIsExternal() async throws {
         let h = try Harness()
         _ = try await h.engine.sync(trigger: .manual, scope: .all)
@@ -358,5 +373,305 @@ private struct ObservationRow: Equatable {
         let result = try await h.engine.sync(trigger: .manual, scope: .all)
         #expect(result.requestCount == h.reader.calls.count)
         #expect(try h.syncRun(1)?.requests == h.reader.calls.count)
+    }
+}
+
+extension Harness {
+    /// "asc_id|owner_key|number|state" of every stored version, by asc id.
+    func versionRows() throws -> [String] {
+        try database.writer.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM metadata_version ORDER BY asc_id").map { row -> String in
+                let id: String = row["asc_id"], owner: String = row["owner_key"], number: Int = row["number"], state: String = row["state"]
+                return "\(id)|\(owner)|\(number)|\(state)"
+            }
+        }
+    }
+
+    /// "asc_id|reference_name|first_sync|last_sync" of every stored group.
+    func groupRows() throws -> [String] {
+        try database.writer.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM subscription_group ORDER BY asc_id").map { row -> String in
+                let id: String = row["asc_id"], name: String = row["reference_name"], first: Int64 = row["first_sync"], last: Int64 = row["last_sync"]
+                return "\(id)|\(name)|\(first)|\(last)"
+            }
+        }
+    }
+}
+
+@Suite struct SyncEngineLocalizationTests {
+    private static let yearly = LocalizationOwner.subscription("6500000001")
+    private static let lifetime = LocalizationOwner.iap("6600000001")
+    private static let premium = LocalizationOwner.group("7000000001")
+
+    /// The base catalog with a live version 1 for the subscription (en-US, cs), the IAP (en-US) and the group (en-US).
+    private static func script() -> ScriptedReader.Script {
+        var script = Harness.baseScript()
+        script.metadata[yearly] = OwnerMetadata(owner: yearly, versions: [Sample.version("sver-1", number: 1, state: .approved)], localizations: [
+            Sample.text("sloc-1-en", version: "sver-1", name: "Fruit Yearly", description: "Fruit all year"),
+            Sample.text("sloc-1-cs", version: "sver-1", locale: "cs", name: "Ovoce ročně", description: "Ovoce na celý rok"),
+        ])
+        script.metadata[lifetime] = OwnerMetadata(owner: lifetime, versions: [Sample.version("iver-1", owner: lifetime, number: 1, state: .approved)],
+                                                  localizations: [Sample.text("iloc-1-en", owner: lifetime, version: "iver-1", name: "Fruit Lifetime",
+                                                                              description: "Every fruit, forever")])
+        script.metadata[premium] = OwnerMetadata(owner: premium, versions: [Sample.version("gver-1", owner: premium, number: 1, state: .approved)],
+                                                 localizations: [Sample.text("gloc-1-en", owner: premium, version: "gver-1", name: "Fruit Premium",
+                                                                             customAppName: "Fruit Journal")])
+        return script
+    }
+
+    @Test func firstSyncStoresGroupsVersionsAndTextsOfEveryOwner() async throws {
+        let h = try Harness(Self.script())
+        let result = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(result.status == .complete)
+        #expect(result.newFindings.isEmpty)
+        #expect(h.reader.calls.filter { $0.hasPrefix("metadata:") } == ["metadata:S|6500000001", "metadata:I|6600000001", "metadata:G|7000000001"])
+        #expect(try h.observations("LOCALIZATION").map(\.ascId) == ["sloc-1-cs", "sloc-1-en", "iloc-1-en", "gloc-1-en"])
+        #expect(try h.observations("LOCALIZATION").allSatisfy { $0.provenance == "BASELINE" })
+        #expect(try h.catalog.history(cell: .localization(owner: Self.yearly, locale: "cs")).map(\.ascId) == ["sloc-1-cs"])
+        #expect(try h.versionRows() == ["gver-1|G|7000000001|1|APPROVED", "iver-1|I|6600000001|1|APPROVED", "sver-1|S|6500000001|1|APPROVED"])
+        #expect(try h.groupRows() == ["7000000001|Fruit Premium|1|1"])
+
+        h.reader.update { $0.groups = [ASCSubscriptionGroup(id: "7000000001", referenceName: "Fruit Premium 2")] }
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(try h.groupRows() == ["7000000001|Fruit Premium 2|1|2"])
+    }
+
+    @Test func aTextChangedInAppStoreConnectIsExternal() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        h.reader.update { $0.metadata[Self.yearly]?.localizations[1].text.name = "Fruit Yearly Plus" }
+        let result = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(result.newFindings.map(\.type) == [.external])
+        #expect(result.newFindings.first?.cell == .localization(owner: Self.yearly, locale: "en-US"))
+        #expect(result.newFindings.first?.message == "Localization sloc-1-en changed outside Purser")
+        #expect(try h.catalog.history(cell: .localization(owner: Self.yearly, locale: "en-US")).map(\.provenance) == [.baseline, .external])
+    }
+
+    @Test func aSecondEditOfATextAfterAnAckIsANewFinding() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        h.reader.update { $0.metadata[Self.yearly]?.localizations[1].text.name = "Fruit Yearly Plus" }
+        let first = try #require(try await h.engine.sync(trigger: .manual, scope: .all).newFindings.first)
+        try h.catalog.ack(findingId: first.id, reason: "Renamed on purpose in App Store Connect", at: h.clock.now())
+        h.reader.update { $0.metadata[Self.yearly]?.localizations[1].text.name = "Fruit Yearly Max" }
+        let second = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(second.newFindings.map(\.message) == ["Localization sloc-1-en changed outside Purser"])
+        #expect(second.newFindings.first?.id != first.id)
+        #expect(try h.catalog.findings(includeAcked: false).map(\.id) == second.newFindings.map(\.id))
+    }
+
+    @Test func approvalOfThePendingVersionRetiresTheOldTextsSilently() async throws {
+        var script = Self.script()
+        script.metadata[Self.yearly] = OwnerMetadata(owner: Self.yearly, versions: [
+            Sample.version("sver-1", number: 1, state: .approved), Sample.version("sver-2", number: 2, state: .waitingForReview),
+        ], localizations: [
+            Sample.text("sloc-1-en", version: "sver-1", name: "Fruit Yearly", description: "Fruit all year"),
+            Sample.text("sloc-2-en", version: "sver-2", name: "Fruit Yearly Plus", description: "All the fruit"),
+        ])
+        let h = try Harness(script)
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        h.reader.update {
+            // The reader still returns the retired text; the sync keeps only texts of the live and the pending version.
+            $0.metadata[Self.yearly]?.versions = [Sample.version("sver-1", number: 1, state: .replacedWithNewVersion),
+                                                  Sample.version("sver-2", number: 2, state: .approved)]
+        }
+        let result = try await h.engine.sync(trigger: .nightly, scope: .all)
+        #expect(result.newFindings.isEmpty)
+        #expect(try h.observations("LOCALIZATION").first { $0.ascId == "sloc-1-en" }?.expired == 1)
+        #expect(try h.observations("LOCALIZATION").first { $0.ascId == "sloc-2-en" }?.lastSync == 2)
+        #expect(try h.versionRows().filter { $0.hasPrefix("sver") } == ["sver-1|S|6500000001|1|REPLACED_WITH_NEW_VERSION",
+                                                                         "sver-2|S|6500000001|2|APPROVED"])
+    }
+
+    private static func withNewVersion(_ script: inout ScriptedReader.Script) {
+        script.metadata[yearly]?.versions.append(Sample.version("sver-2", number: 2, state: .prepareForSubmission))
+        script.metadata[yearly]?.localizations += [
+            Sample.text("sloc-2-en", version: "sver-2", name: "Fruit Yearly", description: "Fruit all year"),
+            Sample.text("sloc-2-cs", version: "sver-2", locale: "cs", name: "Ovoce ročně", description: "Ovoce na celý rok"),
+        ]
+    }
+
+    @Test func aVersionCreatedInAppStoreConnectIsExternal() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        h.reader.update { Self.withNewVersion(&$0) }
+        let result = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(result.newFindings.map(\.message).sorted() == ["Localization sloc-2-cs appeared outside Purser",
+                                                               "Localization sloc-2-en appeared outside Purser"])
+    }
+
+    @Test func textsInAVersionPurserCreatedArePurser() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        // No localization payload exists before localization plans; the stand-in payload is never sent, only the asc id counts.
+        try h.recordPurserItem(.deletePromo(ascId: "unused"), cell: .metadataVersion(owner: Self.yearly), state: .done, ascId: "sver-2")
+        h.reader.update { Self.withNewVersion(&$0) }
+        let result = try await h.engine.sync(trigger: .verify, scope: .products(["6500000001"]))
+        #expect(result.newFindings.isEmpty)
+        #expect(try h.observations("LOCALIZATION").filter { $0.ascId.hasPrefix("sloc-2") }.map(\.provenance) == ["PURSER", "PURSER"])
+    }
+
+    private static func setText(_ script: inout ScriptedReader.Script, _ ascId: String, _ text: LocalizationText) {
+        guard let index = script.metadata[yearly]?.localizations.firstIndex(where: { $0.ascId == ascId }) else { return }
+        script.metadata[yearly]?.localizations[index].text = text
+    }
+
+    private static let english = CellKey.localization(owner: yearly, locale: "en-US")
+    private static let purserText = LocalizationText(name: "Fruit Yearly Plus", description: "Fruit all year")
+
+    /// The base catalog with version 2 in preparation, after a Done PATCH of its en-US text that the verify sync saw.
+    private static func afterPurserWroteEnglish() async throws -> Harness {
+        var script = Self.script()
+        Self.withNewVersion(&script)
+        let h = try Harness(script)
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        try h.recordPurserItem(.setLocalization(SetLocalization(owner: yearly, locale: "en-US", text: purserText,
+                                                                localizationId: "sloc-2-en", versionId: nil)),
+                               cell: english, state: .done, ascId: "sloc-2-en")
+        h.reader.update { Self.setText(&$0, "sloc-2-en", purserText) }
+        let verified = try await h.engine.sync(trigger: .verify, scope: .products(["6500000001"]))
+        #expect(verified.newFindings.isEmpty)
+        #expect(try h.catalog.history(cell: english).filter { $0.ascId == "sloc-2-en" }.map(\.provenance) == [.baseline, .purser])
+        return h
+    }
+
+    @Test func anEditInAppStoreConnectOfATextPurserWroteIsExternal() async throws {
+        let h = try await Self.afterPurserWroteEnglish()
+        h.reader.update { Self.setText(&$0, "sloc-2-en", LocalizationText(name: "Fruit Yearly Plus", description: "Edited in App Store Connect")) }
+        let result = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(result.newFindings.map(\.message) == ["Localization sloc-2-en changed outside Purser"])
+        #expect(try h.catalog.history(cell: Self.english).filter { $0.ascId == "sloc-2-en" }.map(\.provenance)
+                == [.baseline, .purser, .external])
+    }
+
+    @Test func aTextPurserWroteThatGoesBackToItsEarlierFormOutsidePurserIsExternal() async throws {
+        let h = try await Self.afterPurserWroteEnglish()
+        h.reader.update { Self.setText(&$0, "sloc-2-en", LocalizationText(name: "Fruit Yearly", description: "Fruit all year")) }
+        let result = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(result.newFindings.map(\.message) == ["Localization sloc-2-en went back to an earlier form outside Purser"])
+    }
+
+    @Test func anEditInAppStoreConnectOfATextInAVersionPurserCreatedIsExternal() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        try h.recordPurserItem(.deletePromo(ascId: "unused"), cell: .metadataVersion(owner: Self.yearly), state: .done, ascId: "sver-2")
+        h.reader.update { Self.withNewVersion(&$0) }
+        #expect(try await h.engine.sync(trigger: .verify, scope: .products(["6500000001"])).newFindings.isEmpty)
+        h.reader.update { Self.setText(&$0, "sloc-2-cs", LocalizationText(name: "Ovoce ročně", description: "Upraveno v App Store Connect")) }
+        let result = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(result.newFindings.map(\.message) == ["Localization sloc-2-cs changed outside Purser"])
+    }
+
+    @Test func aLocaleRemovedFromACurrentVersionIsExternal() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        h.reader.update { $0.metadata[Self.yearly]?.localizations.removeAll { $0.locale == "cs" } }
+        let result = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(result.newFindings.map(\.message) == ["Localization sloc-1-cs disappeared outside Purser"])
+        #expect(result.newFindings.first?.cell == .localization(owner: Self.yearly, locale: "cs"))
+    }
+
+    @Test func theSnapshotCarriesGroupsVersionsAndTexts() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        let snapshot = try #require(try h.catalog.latestSnapshot())
+        #expect(snapshot.groups == ["7000000001": SubscriptionGroupInfo(ascId: "7000000001", referenceName: "Fruit Premium")])
+        #expect(snapshot.metadata.keys.sorted() == [Self.premium, Self.lifetime, Self.yearly])
+        #expect(snapshot.metadata[Self.yearly] == Self.script().metadata[Self.yearly])
+        #expect(snapshot.ownerName(Self.premium) == "Fruit Premium")
+        #expect(snapshot.cellState(.localization(owner: Self.yearly, locale: "cs"), on: CalendarDate(year: 2026, month: 10, day: 9))
+                == .localization(live: Self.script().metadata[Self.yearly]?.localizations.first, pending: nil, pendingVersion: nil))
+
+        // A product that leaves the catalog takes its texts with it.
+        h.reader.update { $0.iaps = [] }
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(try h.catalog.latestSnapshot()?.metadata[Self.lifetime] == nil)
+    }
+
+    @Test func aFailedReadKeepsTheVersionsAndTextsOfTheLastCompleteRead() async throws {
+        let h = try Harness(Self.script())
+        _ = try await h.engine.sync(trigger: .manual, scope: .all)
+        h.reader.update {
+            $0.metadata[Self.yearly]?.versions = [Sample.version("sver-1", number: 1, state: .replacedWithNewVersion)]
+            $0.failures["metadata:S|6500000001"] = .network(description: "offline", maybeSent: false)
+        }
+        let result = try await h.engine.sync(trigger: .nightly, scope: .all)
+        #expect(result.status == .partial)
+        #expect(result.newFindings.isEmpty)
+        #expect(try h.syncRun(2)?.scopes.contains("6500000001|LOCALIZATION") == false)
+        #expect(try h.versionRows().contains("sver-1|S|6500000001|1|APPROVED"))
+        let texts = try h.catalog.liveObservations(productAscId: "6500000001").filter { $0.kind == "LOCALIZATION" }
+        #expect(texts.map(\.ascId) == ["sloc-1-cs", "sloc-1-en"])
+        #expect(texts.map(\.lastSync) == [1, 1])
+        #expect(try h.catalog.latestSnapshot()?.liveVersion(of: Self.yearly)?.state == .approved)
+    }
+
+    @Test func aPartialSyncNamesItsFailedScopes() async throws {
+        let h = try Harness(Self.script())
+        let complete = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(complete.failedScopes.isEmpty)
+        h.reader.update {
+            $0.failures["metadata:S|6500000001"] = .network(description: "offline", maybeSent: false)
+            $0.failures["introductoryOffers:6500000001"] = .network(description: "offline", maybeSent: false)
+        }
+        let partial = try await h.engine.sync(trigger: .nightly, scope: .all)
+        #expect(partial.status == .partial)
+        #expect(partial.failedScopes == ["6500000001|LOCALIZATION", "6500000001|INTRO"])
+    }
+
+    @Test func aPartialSyncNamesAFailedPricePointRead() async throws {
+        let h = try Harness(Self.script())
+        h.reader.update { $0.failures["pricePoints:6500000001"] = .network(description: "offline", maybeSent: false) }
+        let partial = try await h.engine.sync(trigger: .manual, scope: .all)
+        #expect(partial.failedScopes == ["6500000001|PRICE_POINTS"])
+    }
+}
+
+@Suite struct SyncResultCompletenessTests {
+    private static let yearly = CellKey.regular(subscriptionId: "sub-y", territory: "CZE", planType: .upfront)
+    private static let intro = CellKey.intro(subscriptionId: "sub-y", territory: "CZE", planType: .upfront)
+    private static let promo = CellKey.promo(subscriptionId: "sub-y", offerCode: "winter_v1")
+    private static let schedule = CellKey.iapSchedule(iapId: "iap-life")
+    private static let text = CellKey.localization(owner: .subscription("sub-y"), locale: "cs")
+    private static let version = CellKey.metadataVersion(owner: .group("grp-1"))
+
+    private static func result(_ failed: Set<String>) -> SyncResult {
+        SyncResult(syncId: 2, status: failed.isEmpty ? .complete : .partial, requestCount: 10, newFindings: [], failedScopes: failed)
+    }
+
+    @Test func aCompleteSyncIsCompleteForEveryCell() {
+        #expect(Self.result([]).isComplete(for: [Self.yearly, Self.text, Self.version]))
+    }
+
+    @Test func priceCellsNeedEveryPriceScopeOfTheirProductButNotItsTexts() {
+        for kind in ["PRICE", "INTRO", "PROMO", "PRICE_POINTS"] {
+            for cell in [Self.yearly, Self.intro, Self.promo] {
+                #expect(!Self.result(["sub-y|\(kind)"]).isComplete(for: [cell]), "\(kind) blocks \(cell)")
+            }
+        }
+        #expect(!Self.result(["iap-life|IAP_SCHEDULE"]).isComplete(for: [Self.schedule]))
+        #expect(!Self.result(["iap-life|PRICE_POINTS"]).isComplete(for: [Self.schedule]))
+        #expect(Self.result(["sub-y|LOCALIZATION"]).isComplete(for: [Self.yearly, Self.intro, Self.promo]))
+        #expect(Self.result(["iap-life|LOCALIZATION"]).isComplete(for: [Self.schedule]))
+        #expect(Self.result(["sub-m|PRICE"]).isComplete(for: [Self.yearly]))
+    }
+
+    @Test func textAndVersionCellsNeedOnlyTheirOwnersTexts() {
+        #expect(!Self.result(["sub-y|LOCALIZATION"]).isComplete(for: [Self.text]))
+        #expect(!Self.result(["grp-1|LOCALIZATION"]).isComplete(for: [Self.version]))
+        #expect(Self.result(["sub-y|PRICE", "sub-y|PRICE_POINTS"]).isComplete(for: [Self.text]))
+        #expect(Self.result(["sub-m|LOCALIZATION"]).isComplete(for: [Self.text, Self.version]))
+    }
+
+    @Test func aMixedPlanNeedsBoth() {
+        #expect(!Self.result(["sub-y|LOCALIZATION"]).isComplete(for: [Self.yearly, Self.text]))
+        #expect(!Self.result(["sub-y|PRICE"]).isComplete(for: [Self.yearly, Self.text]))
+    }
+
+    @Test func anIncompleteResultWithoutNamedScopesIsNeverComplete() {
+        let unnamed = SyncResult(syncId: 2, status: .partial, requestCount: 10, newFindings: [], failedScopes: [])
+        #expect(!unnamed.isComplete(for: [Self.yearly]))
+        #expect(!unnamed.isComplete(for: []))
+        #expect(!Self.result(["no-separator"]).isComplete(for: [Self.yearly]))
     }
 }

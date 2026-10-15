@@ -18,6 +18,12 @@ public final class ScriptedReader: ASCReading, RequestCounting, Sendable {
         public var pricePoints: [String: [PricePoint]] = [:]
         public var iaps: [IAPInfo] = []
         public var schedules: [String: IAPSchedule] = [:]
+        /// Product ASC id -> availability (subscription or in-app purchase); missing = none.
+        public var availabilities: [String: ProductAvailability] = [:]
+        /// Product ASC id -> review screenshot; missing = none.
+        public var screenshots: [String: ReviewScreenshot] = [:]
+        /// Versions and texts per owner; an owner without an entry has no version.
+        public var metadata: [LocalizationOwner: OwnerMetadata] = [:]
         /// Keys like "regularPrices:6500000001"; the matching call throws the error instead of answering.
         public var failures: [String: ASCError] = [:]
 
@@ -79,5 +85,19 @@ public final class ScriptedReader: ASCReading, RequestCounting, Sendable {
     public func iapPriceSchedule(iapId: String) async throws -> IAPSchedule? { try answer("iapPriceSchedule:\(iapId)") { $0.schedules[iapId] } }
     public func iapPricePoints(iapId: String, territories: [TerritoryCode]) async throws -> [PricePoint] {
         try answer("iapPricePoints:\(iapId)") { script in (script.pricePoints[iapId] ?? []).filter { territories.contains($0.territory) } }
+    }
+    public func subscriptionAvailability(subscriptionId: String) async throws -> ProductAvailability? {
+        try answer("subscriptionAvailability:\(subscriptionId)") { $0.availabilities[subscriptionId] }
+    }
+    public func iapAvailability(iapId: String) async throws -> ProductAvailability? {
+        try answer("iapAvailability:\(iapId)") { $0.availabilities[iapId] }
+    }
+    public func reviewScreenshot(of owner: LocalizationOwner) async throws -> ReviewScreenshot? {
+        // A group has no review screenshot; like LiveASCClient this answers without a request.
+        if owner.kind == .group { return nil }
+        return try answer("reviewScreenshot:\(owner.key)") { $0.screenshots[owner.ascId] }
+    }
+    public func metadata(owner: LocalizationOwner) async throws -> OwnerMetadata {
+        try answer("metadata:\(owner.key)") { $0.metadata[owner] ?? OwnerMetadata(owner: owner, versions: [], localizations: []) }
     }
 }

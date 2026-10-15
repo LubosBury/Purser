@@ -26,12 +26,13 @@ Third-party subscription tools can write only part of this to ASC: regular price
 | In v1 | Outside v1 |
 |---|---|
 | Regular prices of auto-renewable subscriptions per territory, including `preserveCurrentPrice` | Offer codes, win-back offers |
-| Introductory offers: free trial (also with a different length per territory), pay up front, pay as you go; the price from a rule ("x % of the regular price, down to a price point") or from a table | Localization, review screenshots, submitting for review (v2). Creating products (group, subscription, non-consumable purchase, availability in all territories) has been in v1 since 2026-10-11; prices and offers of new products are still set by plans |
+| Introductory offers: free trial (also with a different length per territory), pay up front, pay as you go; the price from a rule ("x % of the regular price, down to a price point") or from a table | Submitting for review (v2). Creating products (group, subscription, non-consumable purchase, availability in all territories) has been in v1 since 2026-10-11, localized texts and cloning products since 2026-10-14 (left column); prices and offers of new products are still set by plans |
 | Promotional offers including prices per territory | Google Play (later; the core stays store-independent, the abstraction is not built up front) |
 | Prices of one-time purchases (IAP, typically lifetime) | Approval by a second person, multiple users |
 | Import from a Google Sheet or a CSV with column mapping | Any integration with third-party subscription tools |
 | Catalog overview, drift watching, history and audit | Writes of plan type MONTHLY (only reading and the ratio check) [P2] |
-| | Changes of territory availability |
+| Localized names and descriptions of subscriptions, in-app purchases and subscription groups, through plans like prices (since 2026-10-14, [localizations and cloning](2026-10-14-localizations-and-cloning-design.md)) | Changes of the territory availability of existing products (a clone gets its source's availability) |
+| Cloning subscriptions and in-app purchases for A/B tests: the product with its attributes, availability, texts and review screenshot; its prices and offers as Draft plans (since 2026-10-14) | |
 
 ## 3. Decisions
 

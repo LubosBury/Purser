@@ -1,0 +1,17 @@
+{
+  "x-purser-fixture": "hand-made in L1 from the OpenAPI 4.5.1 schema (SubscriptionGroupVersionsResponse); replace with a recorded fixture",
+  "data": [
+    { "type": "subscriptionGroupVersions", "id": "gver-1",
+      "attributes": { "version": 1, "state": "APPROVED" },
+      "relationships": { "localizations": { "data": [ { "type": "subscriptionGroupLocalizations", "id": "gloc-1-en" } ] } } },
+    { "type": "subscriptionGroupVersions", "id": "gver-2",
+      "attributes": { "version": 2, "state": "WAITING_FOR_REVIEW" },
+      "relationships": { "localizations": { "data": [ { "type": "subscriptionGroupLocalizations", "id": "gloc-2-en" } ] } } }
+  ],
+  "included": [
+    { "type": "subscriptionGroupLocalizations", "id": "gloc-1-en", "attributes": { "name": "Fruit Premium", "locale": "en-US", "customAppName": "Fruit Journal" } },
+    { "type": "subscriptionGroupLocalizations", "id": "gloc-2-en", "attributes": { "name": "Fruit Premium", "locale": "en-US", "customAppName": "Fruit Journal Plus" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v1/subscriptionGroups/7000000001/versions?include=localizations&limit%5Blocalizations%5D=50&limit=200" },
+  "meta": { "paging": { "total": 2, "limit": 200 } }
+}

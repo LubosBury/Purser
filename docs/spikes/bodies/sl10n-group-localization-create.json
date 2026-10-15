@@ -1,0 +1,3 @@
+{"data": {"type": "subscriptionGroupLocalizations",
+  "attributes": {"locale": "{{LOCALE}}", "name": "{{NAME}}", "customAppName": "{{CUSTOM_APP_NAME}}"},
+  "relationships": {"version": {"data": {"type": "subscriptionGroupVersions", "id": "{{VERSION}}"}}}}}

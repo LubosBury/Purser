@@ -148,7 +148,8 @@ func promoCreate(_ seq: Int, sub: String = "s", code: String, mode: OfferMode = 
     @Test func defaultsContainEveryRule() {
         let ids = Set(PolicyEngine.defaultPlanRules.map(\.id))
         #expect(ids == ["A2", "A3", "A4", "A5", "A6", "A7", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9",
-                        "I2", "I4", "I5", "I6", "I7", "I8", "I9", "O1", "O2", "O3", "O5", "O6", "O7", "L2", "L3", "S10"])
+                        "I2", "I4", "I5", "I6", "I7", "I8", "I9", "O1", "O2", "O3", "O5", "O6", "O7", "L2", "L3", "S10",
+                        "N1", "N2", "N3", "N4", "N5"])
         #expect(PolicyEngine.defaultInvariants.map(\.id) == ["A6", "R3", "I4", "I5", "O5"])
         let config = SyntheticCatalog.config(mapping: SyntheticImport.mapping())
         #expect(PolicyEngine.invariants(for: config).map(\.id) == ["A6", "R3", "I4", "I5", "O5"])

@@ -2,13 +2,13 @@
 """Copies an ASC JSON response into a fixture with identifying strings replaced.
 
 Usage: python3 -I Tools/redact-fixture.py <input.json> <output.json>
-Ids, prices, dates, states and structure stay; names, product ids, bundle id, SKU and offer codes become
-stable stand-in values ("redacted-productId-1"). Refuses input that contains a bearer token or a PEM key.
+Ids, prices, dates, states and structure stay; names, product ids, bundle id, SKU, reference names, offer codes,
+review notes, descriptions and custom app names become stable stand-in values ("redacted-productId-1"). Refuses input that contains a bearer token or a PEM key.
 """
 import json
 import sys
 
-REDACT = {"bundleId", "sku", "name", "productId", "referenceName", "offerCode", "reviewNote", "description"}
+REDACT = {"bundleId", "sku", "name", "productId", "referenceName", "offerCode", "reviewNote", "description", "customAppName"}
 FORBIDDEN = ("Bearer ", "-----BEGIN")
 
 

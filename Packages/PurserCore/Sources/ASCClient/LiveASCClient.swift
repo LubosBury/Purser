@@ -34,4 +34,23 @@ enum ASCPath {
     static func iapManualPrices(schedule: String) -> String { "/v1/inAppPurchasePriceSchedules/\(schedule)/manualPrices" }
     static func iapBaseTerritory(schedule: String) -> String { "/v1/inAppPurchasePriceSchedules/\(schedule)/baseTerritory" }
     static func iapPricePoints(_ iap: String) -> String { "/v2/inAppPurchases/\(iap)/pricePoints" }
+    static func iapAvailability(_ iap: String) -> String { "/v2/inAppPurchases/\(iap)/inAppPurchaseAvailability" }
+    static func iapAvailableTerritories(availability: String) -> String { "/v1/inAppPurchaseAvailabilities/\(availability)/availableTerritories" }
+    static func subscriptionReviewScreenshot(_ subscription: String) -> String { "/v1/subscriptions/\(subscription)/appStoreReviewScreenshot" }
+    static func iapReviewScreenshot(_ iap: String) -> String { "/v2/inAppPurchases/\(iap)/appStoreReviewScreenshot" }
+    static func subscriptionVersions(_ subscription: String) -> String { "/v1/subscriptions/\(subscription)/versions" }
+    static func iapVersions(_ iap: String) -> String { "/v2/inAppPurchases/\(iap)/versions" }
+    static func groupVersions(_ group: String) -> String { "/v1/subscriptionGroups/\(group)/versions" }
+    /// Only when the version's `localizations` relationship came back with as many ids as the include limit.
+    static func versionLocalizations(_ owner: LocalizationOwnerKind, version: String) -> String {
+        "/v1/\(ASCMapping.versionType(owner))/\(version)/localizations"
+    }
+
+    static func versions(of owner: LocalizationOwner) -> String {
+        switch owner.kind {
+        case .subscription: return subscriptionVersions(owner.ascId)
+        case .iap: return iapVersions(owner.ascId)
+        case .group: return groupVersions(owner.ascId)
+        }
+    }
 }

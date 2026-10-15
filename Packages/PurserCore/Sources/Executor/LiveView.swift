@@ -5,11 +5,13 @@ import ASCClient
 
 extension CatalogSnapshot {
     package func replacing(regularRows: [RegularPriceRow]? = nil, introRows: [IntroOfferRow]? = nil,
-                           promoOffers: [PromoOffer]? = nil, iapSchedules: [String: IAPSchedule]? = nil) -> CatalogSnapshot {
+                           promoOffers: [PromoOffer]? = nil, iapSchedules: [String: IAPSchedule]? = nil,
+                           metadata: [LocalizationOwner: OwnerMetadata]? = nil) -> CatalogSnapshot {
         CatalogSnapshot(syncId: syncId, takenAt: takenAt, subscriptions: subscriptions, iaps: iaps, territories: territories,
                         regularRows: regularRows ?? self.regularRows, introRows: introRows ?? self.introRows,
                         promoOffers: promoOffers ?? self.promoOffers, iapSchedules: iapSchedules ?? self.iapSchedules,
-                        pricePoints: pricePoints, offerCodesEverSeen: offerCodesEverSeen)
+                        pricePoints: pricePoints, offerCodesEverSeen: offerCodesEverSeen, groups: groups,
+                        metadata: metadata ?? self.metadata)
     }
 }
 
@@ -19,6 +21,7 @@ package enum FreshRows: Sendable {
     case intro(subscriptionId: String, rows: [IntroOfferRow])
     case promo(subscriptionId: String, offers: [PromoOffer])
     case iap(iapId: String, schedule: IAPSchedule?)
+    case metadata(OwnerMetadata)
 }
 
 /// The executor's freshest knowledge of live cells: the latest snapshot plus the effect of its own writes.
@@ -64,6 +67,11 @@ package struct LiveView: Sendable {
             schedules[iapId] = schedule
             snapshot = snapshot.replacing(iapSchedules: schedules)
             overrides[.iapSchedule(iapId: iapId)] = nil
+        case let .metadata(fresh):
+            var metadata = snapshot.metadata
+            metadata[fresh.owner] = fresh
+            snapshot = snapshot.replacing(metadata: metadata)
+            overrides = overrides.filter { key, _ in key.localizationOwner != fresh.owner }
         }
     }
 }
@@ -84,6 +92,8 @@ package struct CellReader: Sendable {
             return .promo(subscriptionId: subscriptionId, offers: try await reader.promotionalOffers(subscription: try info(subscriptionId, snapshot)))
         case let .iapSchedule(iapId):
             return .iap(iapId: iapId, schedule: try await reader.iapPriceSchedule(iapId: iapId))
+        case let .localization(owner, _), let .metadataVersion(owner):
+            return .metadata(try await reader.metadata(owner: owner))
         }
     }
 

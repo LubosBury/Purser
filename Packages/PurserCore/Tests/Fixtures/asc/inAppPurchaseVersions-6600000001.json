@@ -1,0 +1,13 @@
+{
+  "x-purser-fixture": "hand-made in L1 from the OpenAPI 4.5.1 schema (InAppPurchaseVersionsResponse); replace with a recorded fixture",
+  "data": [
+    { "type": "inAppPurchaseVersions", "id": "iver-1",
+      "attributes": { "version": 1, "state": "APPROVED" },
+      "relationships": { "localizations": { "data": [ { "type": "inAppPurchaseLocalizations", "id": "iloc-1-en" } ] } } }
+  ],
+  "included": [
+    { "type": "inAppPurchaseLocalizations", "id": "iloc-1-en", "attributes": { "name": "Fruit Lifetime", "locale": "en-US", "description": "Every fruit, forever" } }
+  ],
+  "links": { "self": "https://api.appstoreconnect.apple.com/v2/inAppPurchases/6600000001/versions?include=localizations&limit%5Blocalizations%5D=50&limit=200" },
+  "meta": { "paging": { "total": 1, "limit": 200 } }
+}

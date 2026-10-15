@@ -1,0 +1,2 @@
+{"data": {"type": "subscriptionLocalizations", "id": "{{LOCALIZATION}}",
+  "attributes": {"name": "{{NAME}}", "description": "{{DESCRIPTION}}"}}}

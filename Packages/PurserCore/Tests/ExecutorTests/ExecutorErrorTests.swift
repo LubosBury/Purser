@@ -48,6 +48,15 @@ private struct HoldFirstWriteWriter: ASCWriting {
     func replacePromotionalOfferPrices(ascId: String, prices: [NewPromoPrice]) async throws { await hold(); try await inner.replacePromotionalOfferPrices(ascId: ascId, prices: prices) }
     func deletePromotionalOffer(ascId: String) async throws { await hold(); try await inner.deletePromotionalOffer(ascId: ascId) }
     func replaceIAPPriceSchedule(_ r: NewIAPSchedule) async throws { await hold(); try await inner.replaceIAPPriceSchedule(r) }
+    func createLocalization(versionId: String, owner: LocalizationOwner, locale: String, text: LocalizationText) async throws -> LocalizationRow {
+        await hold(); return try await inner.createLocalization(versionId: versionId, owner: owner, locale: locale, text: text)
+    }
+    func updateLocalization(localizationId: String, owner: LocalizationOwner, text: LocalizationText) async throws {
+        await hold(); try await inner.updateLocalization(localizationId: localizationId, owner: owner, text: text)
+    }
+    func createMetadataVersion(owner: LocalizationOwner) async throws -> MetadataVersion {
+        await hold(); return try await inner.createMetadataVersion(owner: owner)
+    }
 }
 
 /// Injects a FakeASC fault right after a write failed, so the executor's next read meets it.
@@ -71,6 +80,15 @@ private struct InjectAfterFailureWriter: ASCWriting {
     func replacePromotionalOfferPrices(ascId: String, prices: [NewPromoPrice]) async throws { try await run { try await inner.replacePromotionalOfferPrices(ascId: ascId, prices: prices) } }
     func deletePromotionalOffer(ascId: String) async throws { try await run { try await inner.deletePromotionalOffer(ascId: ascId) } }
     func replaceIAPPriceSchedule(_ r: NewIAPSchedule) async throws { try await run { try await inner.replaceIAPPriceSchedule(r) } }
+    func createLocalization(versionId: String, owner: LocalizationOwner, locale: String, text: LocalizationText) async throws -> LocalizationRow {
+        try await run { try await inner.createLocalization(versionId: versionId, owner: owner, locale: locale, text: text) }
+    }
+    func updateLocalization(localizationId: String, owner: LocalizationOwner, text: LocalizationText) async throws {
+        try await run { try await inner.updateLocalization(localizationId: localizationId, owner: owner, text: text) }
+    }
+    func createMetadataVersion(owner: LocalizationOwner) async throws -> MetadataVersion {
+        try await run { try await inner.createMetadataVersion(owner: owner) }
+    }
 }
 
 private func classify(_ status: Int, _ code: String?, _ detail: String? = nil) -> WriteErrorClass {

@@ -109,6 +109,22 @@ struct PreflightTests {
         #expect(outcome.cellBlockers[czeRegular]?.map(\.rule) == ["S4"])
     }
 
+    @Test func aSubscriptionGroupPassesA5WhenItIsInTheCatalog() async throws {
+        let h = try await ExecutorHarness.make()
+        _ = try await h.initialSync()
+        // No localization payload exists before localization plans; the preflight reads only the cell, so a stand-in serves.
+        func plan(_ group: String) throws -> String {
+            try h.insertPlan(items: [PlannedItem(seq: 1, cell: .metadataVersion(owner: .group(group)), payload: .deletePromo(ascId: "unused"),
+                                                 before: .metadataVersion(nil), target: .metadataVersion(nil))])
+        }
+        let known = try await preflight(h).run(planId: try plan("grp-1"), mode: .firstStart)
+        #expect(known.planBlockers.isEmpty)
+        #expect(known.productStates.isEmpty)
+        let gone = try await preflight(h).run(planId: try plan("grp-9"), mode: .firstStart)
+        #expect(gone.planBlockers.map(\.message) == ["Subscription group grp-9 was not found in App Store Connect"])
+        #expect(await h.fake.writeRequests().isEmpty)
+    }
+
     @Test func targetedResyncReadsOnlyAffectedProducts() async throws {
         let h = try await ExecutorHarness.make()
         let (planId, _) = try await replacePlan(h)

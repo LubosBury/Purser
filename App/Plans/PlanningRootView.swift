@@ -22,6 +22,10 @@ struct PlanningRootView: View {
 struct NewPlanRequest: Identifiable {
     let id = UUID()
     var prefill: FixPrefill?
+    /// The tab the sheet opens on; nil = the default tab.
+    var tab: NewPlanSheet.Tab? = nil
+    /// Preselects this product or group on the Localizations tab; nil = none selected.
+    var localizationOwner: LocalizationOwner? = nil
 }
 
 /// A stored plan as a table row.

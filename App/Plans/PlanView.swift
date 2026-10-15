@@ -12,6 +12,7 @@ struct PlanView: View {
     @State private var ruleFilter: RuleID?
     @State private var showDetails = false
     @State private var messagesGroup: String?
+    @State private var textDetailsSeq: Int?
 
     enum RowFilter: Hashable { case all, marked, excluded }
 
@@ -26,6 +27,14 @@ struct PlanView: View {
 
     private var plan: StoredPlan { presentation.plan }
     private var editable: Bool { plan.state == .draft || plan.state == .stale }
+
+    private var isTextPlan: Bool {
+        if case .localization = presentation.spec.unwrapped { return true }
+        return false
+    }
+
+    /// Width of the checks popover and of the text details popover.
+    private static let popoverWidth = PurserSpacing.space10 * 11
 
     private var visibleRows: [PlanDiffRow] {
         presentation.rows.filter { row in
@@ -46,6 +55,7 @@ struct PlanView: View {
         PurserGlassContainer {
             VStack(alignment: .leading, spacing: PurserSpacing.space4) {
                 header
+                if !presentation.readyForReview.isEmpty || !presentation.incompleteVersions.isEmpty { readyForReviewPanel }
                 // Both panels have their own fixed height. `.fixedSize` around a DisclosureGroup here inflated the
                 // screen's minimum height past the window and pushed the header and the action bar out of it.
                 HStack(alignment: .top, spacing: PurserSpacing.space4) {
@@ -54,7 +64,7 @@ struct PlanView: View {
                 }
                 checkSection
                 filterRow
-                if rowFilter == .excluded { excludedList } else { diffTable }
+                if rowFilter == .excluded { excludedList } else if isTextPlan { textTable } else { diffTable }
                 actionBar
             }
             .padding(PurserSpacing.space5)
@@ -73,6 +83,37 @@ struct PlanView: View {
             Button("Cancel plan") { Task { await model.cancel(planId: plan.id) } }
                 .purserButton()
                 .disabled(!editable)
+        }
+    }
+
+    // MARK: Ready for review (L3)
+
+    /// A plan that created new versions ends with the owner's next step: Purser never submits a version for review. A
+    /// version whose texts did not all land is named apart, so it is not submitted as it is.
+    private var readyForReviewPanel: some View {
+        VStack(alignment: .leading, spacing: PurserSpacing.space2) {
+            if !presentation.readyForReview.isEmpty {
+                versionOwnersRow(ReadyForReview.callToAction, kind: .info, names: presentation.readyForReview)
+            }
+            if !presentation.incompleteVersions.isEmpty {
+                // The MCP wording names the replan_rest tool; here the action is the "Replan the rest" button.
+                versionOwnersRow("Not ready: some texts were not written; use Replan the rest first.", kind: .warning,
+                                 names: presentation.incompleteVersions)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .purserGlassPanel(padding: PurserSpacing.space3)
+    }
+
+    private func versionOwnersRow(_ message: String, kind: PurserBadge.Kind, names: [String]) -> some View {
+        HStack(spacing: PurserSpacing.space3) {
+            PlanFormMessage(message, kind: kind)
+            Text(names.joined(separator: ", "))
+                .font(PurserFont.body)
+                .foregroundStyle(PurserColor.textSecondary)
+                .lineLimit(1)
+                .help(names.joined(separator: ", "))
+            Spacer(minLength: 0)
         }
     }
 
@@ -168,7 +209,7 @@ struct PlanView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(PurserSpacing.space4)
         }
-        .frame(width: 440)
+        .frame(width: Self.popoverWidth)
         .frame(maxHeight: 320)
     }
 
@@ -265,6 +306,72 @@ struct PlanView: View {
         return delta > 0 ? PurserColor.success : PurserColor.warning
     }
 
+    /// L10N plans: locale, before → after and the changed fields in words; every text in full in a popover.
+    private var textTable: some View {
+        Table(visibleRows) {
+            TableColumn("Product or group") { row in Text(model.productName(row.cell.productAscId)) }
+            TableColumn("Locale") { row in Text(row.locale ?? "—").font(PurserFont.identifier) }
+            TableColumn("Change") { row in Text(Self.changeLabel(row)).foregroundStyle(PurserColor.textSecondary) }
+            TableColumn("Before") { row in Text(row.before).foregroundStyle(PurserColor.textSecondary).lineLimit(1).help(row.before) }
+            TableColumn("After") { row in Text(row.after).lineLimit(1).help(row.after) }
+            TableColumn("Changed") { row in changedFields(row) }
+            TableColumn("Flags") { row in flags(row) }
+        }
+        .purserTable()
+    }
+
+    private func changedFields(_ row: PlanDiffRow) -> some View {
+        HStack(spacing: PurserSpacing.space1) {
+            ForEach(PlanDiff.changedFields(row.beforeText, row.afterText), id: \.self) { field in
+                PurserBadge(text: field.label, kind: .info, icon: "arrow.left.arrow.right")
+            }
+            Button("Details") { textDetailsSeq = row.seq }
+                .font(PurserFont.callout)
+                .purserPlainButton()
+                .popover(isPresented: Binding(get: { textDetailsSeq == row.seq }, set: { if !$0 { textDetailsSeq = nil } }), arrowEdge: .bottom) {
+                    textDetails(row)
+                }
+        }
+    }
+
+    /// Every field before and after, in full; a changed field carries the word "Changed".
+    private func textDetails(_ row: PlanDiffRow) -> some View {
+        let changed = Set(PlanDiff.changedFields(row.beforeText, row.afterText))
+        let isGroup = row.cell.localizationOwner?.kind == .group
+        let fields: [LocalizationField] = isGroup ? [.name, .customAppName] : [.name, .description]
+        return VStack(alignment: .leading, spacing: PurserSpacing.space3) {
+            Text("\(model.productName(row.cell.productAscId)) · \(row.locale ?? "")").font(PurserFont.headline)
+            ForEach(fields, id: \.self) { field in
+                VStack(alignment: .leading, spacing: PurserSpacing.space1) {
+                    HStack(spacing: PurserSpacing.space2) {
+                        Text(field.label).font(PurserFont.callout).foregroundStyle(PurserColor.textSecondary)
+                        if changed.contains(field) { PurserBadge(text: "Changed", kind: .info, icon: "arrow.left.arrow.right") }
+                    }
+                    Text("Before: \(Self.value(field, row.beforeText))")
+                        .font(PurserFont.body)
+                        .foregroundStyle(PurserColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                    Text("After: \(Self.value(field, row.afterText))")
+                        .font(PurserFont.body)
+                        .foregroundStyle(PurserColor.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .padding(PurserSpacing.space4)
+        .frame(width: Self.popoverWidth, alignment: .leading)
+    }
+
+    private static func value(_ field: LocalizationField, _ text: LocalizationText?) -> String {
+        switch field {
+        case .name: return text?.name ?? "—"
+        case .description: return text?.description ?? "—"
+        case .customAppName: return text?.customAppName ?? "—"
+        }
+    }
+
     /// Import snapping and the effective discount, for the plan kinds that have them.
     private func detail(_ row: PlanDiffRow) -> String {
         var parts: [String] = []
@@ -295,7 +402,7 @@ struct PlanView: View {
                     if index > 0 { Divider().overlay(PurserColor.separator) }
                     HStack(alignment: .firstTextBaseline, spacing: PurserSpacing.space3) {
                         PurserBadge(text: "BLOCK", kind: .danger)
-                        Text("\(model.productName(cell.productAscId)) · \(cell.territory?.rawValue ?? cell.storageKey)").font(PurserFont.body)
+                        Text("\(model.productName(cell.productAscId)) · \(cell.territory?.rawValue ?? Self.locale(of: cell) ?? cell.storageKey)").font(PurserFont.body)
                         Text(excludedReason(cell))
                             .font(PurserFont.callout)
                             .foregroundStyle(PurserColor.textSecondary)
@@ -314,6 +421,18 @@ struct PlanView: View {
     private func excludedReason(_ cell: CellKey) -> String {
         let reasons = plan.verdicts.filter { $0.cell == cell && $0.severity == .block(.cell) }.map { "\($0.rule): \($0.message)" }
         return reasons.isEmpty ? "Depends on an excluded cell." : reasons.joined(separator: "; ")
+    }
+
+    private static func locale(of cell: CellKey) -> String? {
+        if case let .localization(_, locale) = cell { return locale }
+        return nil
+    }
+
+    /// L3: the version row of a plan that opens a new version, and a Live text carried over into it unchanged.
+    private static func changeLabel(_ row: PlanDiffRow) -> String {
+        if case .metadataVersion = row.cell { return "New version" }
+        if row.beforeText == nil { return "New locale" }
+        return row.beforeText == row.afterText ? "Carried over" : "Edit"
     }
 
     // MARK: Actions

@@ -21,7 +21,8 @@ public enum SpikeVariables {
 
     /// APP_ID, SPIKE_GROUP, SPIKE_YEARLY_A/B/C, SPIKE_MONTHLY, SPIKE_LIFETIME, SPIKE_SCHEDULE and per subscription key K and
     /// territory T: PP_K_T_LOW/MID/HIGH, PRICE_K_T (current row), CURPP_K_T (its price point), ABOVEPP_K_T (the next point
-    /// above it), SCHED_K_T (scheduled row), INTRO_K_T (current intro, else the future one).
+    /// above it), SCHED_K_T (scheduled row), INTRO_K_T (current intro, else the future one). For spike SL10n: VER_<K> and
+    /// LOC_<K>_<LOCALE> with K = YA, YB, YC, M, GROUP, LIFE.
     public static func catalog(snapshot: CatalogSnapshot?, config: WorkspaceConfig, today: CalendarDate) -> [String: String] {
         var values = ["APP_ID": config.appId]
         guard let snapshot else { return values }
@@ -53,6 +54,18 @@ public enum SpikeVariables {
         if let iap = snapshot.iaps.values.first(where: { $0.productId == SpikeProbe.spikeIAPProductId }) {
             values["SPIKE_LIFETIME"] = iap.ascId
             if let scheduleId = snapshot.iapSchedules[iap.ascId]?.scheduleId { values["SPIKE_SCHEDULE"] = scheduleId }
+        }
+        // SL10n: VER_<K> = the version in preparation (else the live one), LOC_<K>_<LOCALE> = its localization ("en-US" -> EN_US).
+        var owners: [(owner: LocalizationOwner, key: String)] = []
+        for entry in subscriptions { if let id = values[entry.variable] { owners.append((LocalizationOwner.subscription(id), entry.key)) } }
+        if let group = values["SPIKE_GROUP"] { owners.append((LocalizationOwner.group(group), "GROUP")) }
+        if let iap = values["SPIKE_LIFETIME"] { owners.append((LocalizationOwner.iap(iap), "LIFE")) }
+        for (owner, key) in owners {
+            guard let version = snapshot.pendingVersion(of: owner) ?? snapshot.liveVersion(of: owner) else { continue }
+            values["VER_\(key)"] = version.ascId
+            for row in snapshot.metadata[owner]?.localizations ?? [] where row.versionId == version.ascId {
+                values["LOC_\(key)_\(row.locale.uppercased().replacingOccurrences(of: "-", with: "_"))"] = row.ascId
+            }
         }
         return values
     }

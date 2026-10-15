@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Domain
 import Audit
 import PurserSecurity
@@ -76,6 +77,89 @@ public struct ProductCreationReport: Hashable, Sendable {
 public enum ProductCreationError: Error, Equatable, Sendable {
     case invalid([String])
     case bindingMismatch(String)
+    /// Another creation or clone of the workspace is running (ProductRuns); nothing was read or sent.
+    case anotherRunInProgress(ProductRunKind)
+}
+
+extension ProductCreationError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case let .invalid(problems): return problems.joined(separator: " ")
+        case let .bindingMismatch(detail): return "The workspace no longer matches the app in App Store Connect (\(detail))."
+        case let .anotherRunInProgress(kind): return kind.waitMessage
+        }
+    }
+}
+
+/// What a ProductCreator run does: create new products, or clone existing ones.
+public enum ProductRunKind: String, Sendable {
+    case creation, clone
+
+    /// What the owner (or Claude over MCP) is told while such a run is in progress.
+    public var waitMessage: String {
+        switch self {
+        case .creation: return "New products are being created in Purser; wait until that finishes."
+        case .clone: return "A clone is running in Purser; wait until it finishes."
+        }
+    }
+}
+
+/// One product creation or clone run per workspace at a time: a second run would read what the first is still writing and
+/// could create the same products again. The session gives its one instance to every ProductCreator it builds, for the
+/// windows and the MCP bridge alike; `create` and `clone` hold it from their first read to their last write. A clone's
+/// price drafts (the sync and the plans built from the clones) are part of the run: its caller keeps a `ProductRunClaim`
+/// over them.
+public final class ProductRuns: Sendable {
+    private let current = Mutex<ProductRunKind?>(nil)
+
+    public init() {}
+
+    /// The run in progress; nil when none is.
+    public var running: ProductRunKind? { current.withLock { $0 } }
+
+    func begin(_ kind: ProductRunKind) throws {
+        try current.withLock { current throws(ProductCreationError) in
+            if let other = current { throw .anotherRunInProgress(other) }
+            current = kind
+        }
+    }
+
+    func end() { current.withLock { $0 = nil } }
+
+    /// Starts a run that its caller ends with `release`: `clone(_:snapshot:holding:)` takes such a claim, so the run stays
+    /// marked while the caller goes on to the clone's drafts. Refused while another run is in progress.
+    public func claim(_ kind: ProductRunKind) throws -> ProductRunClaim {
+        try begin(kind)
+        return ProductRunClaim(runs: self, kind: kind)
+    }
+}
+
+/// A run of ProductRuns that its owner ends. It is released once: by `release`, or when the claim is dropped, so a path that
+/// forgets it cannot block the workspace for good. A second `release` frees nothing, in particular not a later run.
+public final class ProductRunClaim: Sendable {
+    let runs: ProductRuns
+    let kind: ProductRunKind
+    private let held = Mutex(true)
+
+    init(runs: ProductRuns, kind: ProductRunKind) {
+        self.runs = runs
+        self.kind = kind
+    }
+
+    deinit { release() }
+
+    public func release() {
+        let wasHeld = held.withLock { held in
+            let was = held
+            held = false
+            return was
+        }
+        if wasHeld { runs.end() }
+    }
+
+    func holds(_ kind: ProductRunKind, in runs: ProductRuns) -> Bool {
+        self.runs === runs && self.kind == kind && held.withLock { $0 }
+    }
 }
 
 public enum ProductCreationPlanner {
@@ -166,18 +250,23 @@ struct ProductReceivedPayload: Encodable, Sendable {
 /// The single path that creates products in ASC. Like the Executor it lives in Sources/Executor, checks the live app
 /// binding (A1), asks for Touch ID once per run, commits HTTP_SENT before and HTTP_RECEIVED after every request and
 /// never retries. AppGuard lets a create through only under the workspace app. Running it again is safe: what exists
-/// is skipped.
+/// is skipped. Clones (ProductCreator+Clone.swift) take the same path; their review screenshots also use `assets`.
 public actor ProductCreator {
-    private let config: WorkspaceConfig
-    private let http: ASCHTTPClient
-    private let reader: any ASCReading
-    private let audit: AuditLog
-    private let budget: RateBudget
-    private let gate: any BiometricGate
+    let config: WorkspaceConfig
+    let http: ASCHTTPClient
+    let reader: any ASCReading
+    let audit: AuditLog
+    let budget: RateBudget
+    let gate: any BiometricGate
+    /// Shared by every creator of the workspace: one `create` or `clone` at a time.
+    let runs: ProductRuns
+    /// Downloads and uploads the review screenshots of a clone; nil = the run cannot copy images.
+    let assets: AssetTransfer?
 
     public init(config: WorkspaceConfig, http: ASCHTTPClient, reader: any ASCReading, audit: AuditLog, budget: RateBudget,
-                gate: any BiometricGate) {
+                gate: any BiometricGate, runs: ProductRuns, assets: AssetTransfer? = nil) {
         self.config = config; self.http = http; self.reader = reader; self.audit = audit; self.budget = budget; self.gate = gate
+        self.runs = runs; self.assets = assets
     }
 
     /// Groups, subscriptions and non-consumables the app has now (read from ASC, not from the local catalog).
@@ -195,13 +284,14 @@ public actor ProductCreator {
         return existing
     }
 
+    /// Creates what the request names and the app does not have yet. Refused, before anything is read, while another
+    /// creation or clone of the workspace runs (ProductRuns).
     public func create(_ request: ProductCreationRequest) async throws -> [ProductCreationReport] {
+        try runs.begin(.creation)
+        defer { runs.end() }
         let problems = ProductCreationPlanner.problems(request)
         guard problems.isEmpty else { throw ProductCreationError.invalid(problems) }
-        let app = try await reader.app(id: config.appId)
-        guard app.id == config.appId, app.bundleId == config.bundleId else {
-            throw ProductCreationError.bindingMismatch("\(app.id) \(app.bundleId)")
-        }
+        try await checkBinding()
         let existing = try await existing()
         let steps = ProductCreationPlanner.steps(request, existing: existing)
         guard !steps.isEmpty else { return [] }
@@ -262,7 +352,7 @@ public actor ProductCreator {
                                                      "availableTerritories": Self.toMany("territories", territories)])
             }
             do {
-                let ascId = try await post(path: path, body: body, step: step)
+                let ascId = try await createResource(path: path, body: body, refs: Self.refs(step))
                 reports.append(ProductCreationReport(step: step, outcome: .created(ascId: ascId)))
                 switch step {
                 case .group:
@@ -294,31 +384,59 @@ public actor ProductCreator {
         return reports
     }
 
-    /// HTTP_SENT (committed) -> request -> HTTP_RECEIVED. Returns the id of the created resource.
-    private func post(path: String, body: [String: Any], step: ProductCreationStep) async throws -> String {
-        try await budget.acquire(forVerify: false)
+    /// Rule A1 against the live app: its id and bundle id are the workspace's.
+    func checkBinding() async throws {
+        let app = try await reader.app(id: config.appId)
+        guard app.id == config.appId, app.bundleId == config.bundleId else {
+            throw ProductCreationError.bindingMismatch("\(app.id) \(app.bundleId)")
+        }
+    }
+
+    /// A POST that creates one resource; returns its id.
+    func createResource(path: String, body: [String: Any], refs: [String: String]) async throws -> String {
         let data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
-        let refs = Self.refs(step)
+        guard let id = try await send(method: "POST", path: path, body: data, refs: refs, expectsId: true)?.data.first?.id else {
+            throw ASCError.decoding("\(path): the response has no resource id")
+        }
+        return id
+    }
+
+    /// HTTP_SENT (committed) -> request -> HTTP_RECEIVED. Returns the response document (nil for an empty answer such as
+    /// the 204 of a DELETE). With `expectsId`, an answer without a resource id is an error and is recorded as one.
+    func send(method: String, path: String, body: Data?, refs: [String: String], expectsId: Bool) async throws -> JSONAPIDocument? {
+        try await budget.acquire(forVerify: false)
         let tokenId = UUID().uuidString
         try audit.append(.httpSent, refs: refs, payload: ProductSentPayload(
-            method: "POST", path: path, body: String(decoding: data, as: UTF8.self), keyId: config.keyId, jti: tokenId))
+            method: method, path: path, body: body.map { String(decoding: $0, as: UTF8.self) } ?? "", keyId: config.keyId, jti: tokenId))
         let http = self.http
         do {
-            let document = try await ASCRequestContext.$tokenId.withValue(tokenId) {
-                try await http.send(method: "POST", path: path, body: data)
+            let document = try await ASCRequestContext.$tokenId.withValue(tokenId) { () async throws -> JSONAPIDocument? in
+                if method == "DELETE" {
+                    try await http.delete(path: path)
+                    return nil
+                }
+                return try await http.send(method: method, path: path, body: body ?? Data())
             }
-            guard let ascId = document?.data.first?.id else {
-                throw ASCError.decoding("\(path): the response has no resource id")
-            }
+            let ascId = document?.data.first?.id
+            if expectsId, ascId == nil { throw ASCError.decoding("\(path): the response has no resource id") }
             try audit.append(.httpReceived, refs: refs, payload: ProductReceivedPayload(
-                method: "POST", path: path, status: 201, ascId: ascId, error: nil))
-            return ascId
+                method: method, path: path, status: Self.successStatus(method), ascId: ascId, error: nil))
+            return document
         } catch let error as ASCError {
             var status: Int?
             if case let .http(code, _, _, _) = error { status = code }
             try audit.append(.httpReceived, refs: refs, payload: ProductReceivedPayload(
-                method: "POST", path: path, status: status, ascId: nil, error: String(describing: error)))
+                method: method, path: path, status: status, ascId: nil, error: String(describing: error)))
             throw error
+        }
+    }
+
+    /// The status of a successful answer (ASCHTTPClient does not pass it on): 201 for a POST, 204 for a DELETE, else 200.
+    static func successStatus(_ method: String) -> Int {
+        switch method {
+        case "POST": return 201
+        case "DELETE": return 204
+        default: return 200
         }
     }
 
@@ -341,15 +459,15 @@ public actor ProductCreator {
         }
     }
 
-    private static func resource(_ type: String, attributes: [String: Any], relationships: [String: Any]) -> [String: Any] {
+    static func resource(_ type: String, attributes: [String: Any], relationships: [String: Any]) -> [String: Any] {
         ["data": ["type": type, "attributes": attributes, "relationships": relationships]]
     }
 
-    private static func toOne(_ type: String, _ id: String) -> [String: Any] {
+    static func toOne(_ type: String, _ id: String) -> [String: Any] {
         ["data": ["type": type, "id": id]]
     }
 
-    private static func toMany(_ type: String, _ ids: [String]) -> [String: Any] {
+    static func toMany(_ type: String, _ ids: [String]) -> [String: Any] {
         ["data": ids.map { ["type": type, "id": $0] }]
     }
 }

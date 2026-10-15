@@ -22,6 +22,19 @@ extension FakeSeed {
                                   type: "NON_CONSUMABLE", state: .readyToSubmit))
         model.iapSchedules.append(FakeIAPSchedule(id: "sched-spike", iapId: "iap-spike", baseTerritory: "USA", manualPrices: [
             FakeIAPManualPrice(id: "iapprice-spike-0", territory: "USA", pricePointId: "pp-iap-spike-USA-29", startDate: nil, endDate: nil)]))
+        let spikeTexts: [(owner: LocalizationOwner, name: String, second: String)] = [
+            (.subscription("sub-spike-a"), "Spike Yearly A", "Spike yearly plan A"),
+            (.group("grp-spike"), "Purser Spike", "Spike"),
+            (.iap("iap-spike"), "Spike Lifetime", "Spike lifetime access"),
+        ]
+        for text in spikeTexts {
+            let versionId = "ver-spike-\(text.owner.ascId)-1"
+            model.versions.append(FakeVersion(id: versionId, owner: text.owner, number: 1, state: .prepareForSubmission))
+            model.localizations.append(FakeLocalization(id: "loc-spike-\(text.owner.ascId)-en-US", versionId: versionId, locale: "en-US",
+                                                        text: LocalizationText(name: text.name,
+                                                                               description: text.owner.kind == .group ? nil : text.second,
+                                                                               customAppName: text.owner.kind == .group ? text.second : nil)))
+        }
         return model
     }
 }

@@ -25,6 +25,15 @@ public struct ProbeWriter: ASCWriting {
     public func replacePromotionalOfferPrices(ascId: String, prices: [NewPromoPrice]) async throws { probe(); try await inner.replacePromotionalOfferPrices(ascId: ascId, prices: prices) }
     public func deletePromotionalOffer(ascId: String) async throws { probe(); try await inner.deletePromotionalOffer(ascId: ascId) }
     public func replaceIAPPriceSchedule(_ r: NewIAPSchedule) async throws { probe(); try await inner.replaceIAPPriceSchedule(r) }
+    public func createLocalization(versionId: String, owner: LocalizationOwner, locale: String, text: LocalizationText) async throws -> LocalizationRow {
+        probe(); return try await inner.createLocalization(versionId: versionId, owner: owner, locale: locale, text: text)
+    }
+    public func updateLocalization(localizationId: String, owner: LocalizationOwner, text: LocalizationText) async throws {
+        probe(); try await inner.updateLocalization(localizationId: localizationId, owner: owner, text: text)
+    }
+    public func createMetadataVersion(owner: LocalizationOwner) async throws -> MetadataVersion {
+        probe(); return try await inner.createMetadataVersion(owner: owner)
+    }
 }
 
 /// Reports success without touching ASC, so verify never finds the target (Mismatch tests).
@@ -50,4 +59,11 @@ public struct GhostWriter: ASCWriting {
     public func replacePromotionalOfferPrices(ascId: String, prices: [NewPromoPrice]) async throws {}
     public func deletePromotionalOffer(ascId: String) async throws {}
     public func replaceIAPPriceSchedule(_ r: NewIAPSchedule) async throws {}
+    public func createLocalization(versionId: String, owner: LocalizationOwner, locale: String, text: LocalizationText) async throws -> LocalizationRow {
+        LocalizationRow(ascId: "ghost-localization", owner: owner, versionId: versionId, locale: locale, text: text)
+    }
+    public func updateLocalization(localizationId: String, owner: LocalizationOwner, text: LocalizationText) async throws {}
+    public func createMetadataVersion(owner: LocalizationOwner) async throws -> MetadataVersion {
+        MetadataVersion(ascId: "ghost-version", owner: owner, number: 0, state: .prepareForSubmission)
+    }
 }

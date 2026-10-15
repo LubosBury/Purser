@@ -30,6 +30,7 @@ public struct FakeRequestRecord: Hashable, Sendable {
     public var hadAuthorization: Bool     // only presence is recorded, never the value
     public var identity: String?          // "team" or "individual" when the token shape was accepted
     public var tokenId: String?           // the accepted token's jti (never the token itself)
+    public var host: String = FakeASC.apiHost
     public var isWrite: Bool { method != "GET" }
 }
 
@@ -86,9 +87,14 @@ public actor FakeASC: HTTPTransport {
     var appleDeleteCutoffHours = AppleConstants.replaceCutoffHours
     /// Spike S10: whether ASC answers a manual IAP price sent with `startDate: null` with the creation day.
     var iapNullStartEchoesCreationDay = false
+    /// Whether a new version copies the Live version's localizations under new ids (an assumption until a live trial of a
+    /// new version of an approved product shows it).
+    var newVersionCopiesLocalizations = true
     var faults: [(match: FakeMatch, fault: FakeFault, remaining: Int)] = []
     var log: [FakeRequestRecord] = []
     var counter = 0
+    /// Bytes per upload operation of a screenshot reservation.
+    var uploadPartSize = 1_048_576
 
     public init(model: FakeModel, now: @escaping @Sendable () -> Date, rateLimit: Int = 3600) {
         self.model = model
@@ -103,8 +109,12 @@ public actor FakeASC: HTTPTransport {
     public func setRateBudget(limit: Int, remaining: Int) { rateLimit = limit; rateRemaining = remaining }
     public func setAppleDeleteCutoffHours(_ hours: Int) { appleDeleteCutoffHours = hours }
     public func setIAPNullStartEchoesCreationDay(_ on: Bool) { iapNullStartEchoesCreationDay = on }
+    public func setNewVersionCopiesLocalizations(_ on: Bool) { newVersionCopiesLocalizations = on }
     public func requests() -> [FakeRequestRecord] { log }
     public func writeRequests() -> [FakeRequestRecord] { log.filter(\.isWrite) }
+    public func setUploadPartSize(_ bytes: Int) { uploadPartSize = bytes }
+    /// Requests to Apple's upload and image hosts (cloning).
+    public func assetRequests() -> [FakeRequestRecord] { log.filter { $0.host != Self.apiHost } }
 
     /// Rows that share a natural key inside one cell (must always be empty after any Purser run).
     public func duplicates() -> [String] {
@@ -136,7 +146,9 @@ public actor FakeASC: HTTPTransport {
         let authorization = request.value(forHTTPHeaderField: "Authorization")
         var record = FakeRequestRecord(index: log.count, method: method, path: url.path, query: query, body: request.httpBody,
                                        status: nil, applied: false, hadAuthorization: authorization?.hasPrefix("Bearer ") == true,
-                                       identity: nil, tokenId: nil)
+                                       identity: nil, tokenId: nil, host: url.host ?? "")
+        // Apple's upload and image hosts take no JWT (FakeASC+Products.swift).
+        if record.host != Self.apiHost { return try assetExchange(&record, url: url, body: request.httpBody) }
         let fault = takeFault(method: method, path: url.path)
         if fault == .networkBeforeSend {
             log.append(record)

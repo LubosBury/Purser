@@ -11,6 +11,7 @@ enum DefaultRules {
         I8IntroReplacementRule(), I9IntroEligibilityRule(),
         O1OfferCodeRule(), O2PromoCountRule(), O3PromoCoverageRule(), O5PromoBelowRegularRule(), O6PromoChangeRule(), O7PromoDeleteRule(),
         L2IAPGeneratedPricesRule(), L3IAPDecreaseRule(), IAPScheduleSpikeGateRule(),
+        N1VersionInReviewRule(), N2LocaleRule(), N3TextLengthRule(), N4NewLocaleNameRule(), N5NewVersionRule(),
     ]
 
     /// A6, R3, I4, I5, O5.

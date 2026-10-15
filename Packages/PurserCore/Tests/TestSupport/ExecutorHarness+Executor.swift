@@ -2,14 +2,20 @@ import Foundation
 import Domain
 import PurserSecurity
 import ASCClient
+import Catalog
 import Policy
 import Executor
 
 extension ExecutorHarness {
+    /// `reader` replaces the Executor's own reads (preflight app check, cell and owner reads). Its syncs (preflight, verify)
+    /// keep the harness reader unless `syncReader` is given.
     public func makeExecutor(policy: PolicyEngine = PolicyEngine(planRules: [], invariants: []),
-                             gate: any BiometricGate = AlwaysAllowGate(), writer: (any ASCWriting)? = nil) -> Executor {
-        Executor(database: database, config: config, reader: reader, writer: writer ?? self.writer, sync: sync, catalog: catalog,
-                 policy: policy, audit: audit, gate: gate, budget: budget, now: clock.nowFunction, sleep: clock.sleepFunction)
+                             gate: any BiometricGate = AlwaysAllowGate(), writer: (any ASCWriting)? = nil,
+                             reader: (any ASCReading)? = nil, syncReader: (any ASCReading)? = nil) -> Executor {
+        let engine = syncReader.map { SyncEngine(database: database, reader: $0, audit: audit, config: config, now: clock.nowFunction) } ?? sync
+        return Executor(database: database, config: config, reader: reader ?? self.reader, writer: writer ?? self.writer, sync: engine,
+                        catalog: catalog, policy: policy, audit: audit, gate: gate, budget: budget, now: clock.nowFunction,
+                        sleep: clock.sleepFunction)
     }
 }
 

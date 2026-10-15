@@ -74,7 +74,8 @@ private let spikeRequest = ProductCreationRequest.purserSpike
             let budget = RateBudget(now: { Sample.fixedNow }, sleep: { _ in })
             let http = try await WriteTestClients.http(transport: transport, readOnly: readOnly, products: [], budget: budget,
                                                        appGuard: AppGuard(appId: Sample.appId), now: { Sample.fixedNow })
-            creator = ProductCreator(config: Sample.config(), http: http, reader: reader, audit: audit, budget: budget, gate: gate)
+            creator = ProductCreator(config: Sample.config(), http: http, reader: reader, audit: audit, budget: budget, gate: gate,
+                                     runs: ProductRuns())
         }
 
         func sent() async -> [(path: String, body: [String: Any])] {

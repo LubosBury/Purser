@@ -38,7 +38,7 @@ enum PlanSpecSummarizer {
             var discounts: [String: Decimal] = [:]
             if let discount = s.nominalDiscount { for id in s.subscriptionIds { discounts[id] = discount } }
             return PlanSpecSummary(origin: spec.origin, canary: s.canary, nominalDiscounts: discounts, skippedIntroReplacements: [:])
-        case .promo, .iap, .withdraw:
+        case .promo, .iap, .withdraw, .localization:
             return PlanSpecSummary(origin: spec.origin, canary: false, nominalDiscounts: [:], skippedIntroReplacements: [:])
         case let .fix(_, underlying):
             var inner = summary(underlying, config: config)

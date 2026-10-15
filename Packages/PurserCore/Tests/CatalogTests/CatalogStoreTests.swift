@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GRDB
 import Testing
@@ -32,6 +33,23 @@ import PurserTestSupport
         #expect(all.count == 2)
         #expect(all[0].lastSync == 2)
         #expect(all[0].firstSync == 1)
+    }
+
+    @Test func aDiscriminatorTellsTwoFindingsWithTheSameMessageApart() throws {
+        let database = try WorkspaceDatabase.inMemory()
+        let store = CatalogStore(database: database)
+        let findings = try database.writer.write { db in
+            try ["hash-a", "hash-b", "hash-a"].map {
+                try store.upsertFinding(type: .external, rule: nil, cell: cell, message: "changed", discriminator: $0, syncId: 1, in: db)
+            }
+        }
+        #expect(findings.map { $0 != nil } == [true, true, false])
+        // Without a discriminator the fingerprint keeps its formula (the one InvariantRunner uses as well).
+        let plain = try #require(try database.writer.write { db in
+            try store.upsertFinding(type: .external, rule: nil, cell: cell, message: "changed", syncId: 1, in: db)
+        })
+        let formula = SHA256.hash(data: Data("EXTERNAL||\(cell.storageKey)|changed".utf8)).map { String(format: "%02x", $0) }.joined()
+        #expect(plain.fingerprint == formula)
     }
 
     @Test func ackHidesAFindingFromTheOpenList() throws {

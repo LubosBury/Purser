@@ -19,6 +19,9 @@ struct RunContext: Sendable {
     var erroredSeqs: Set<Int> = []
     var rateAttempt = 0
     var authRetried: Set<Int> = []
+    /// Owner reads of this run: the only cache. readCreatedVersionBeforeText and LocalizationResolver's `fresh`
+    /// fill it, only with a read that shows the version the plan created.
+    var freshMetadata: [LocalizationOwner: OwnerMetadata] = [:]
 }
 
 enum ItemStep: Sendable { case next, retry }
@@ -34,7 +37,7 @@ extension Executor {
         if let other = try store.plans(states: [.applying]).first(where: { $0.id != planId }) {
             throw ExecutorError.anotherPlanApplying(other.id)
         }
-        try await gate.authenticate(reason: "Apply a price plan to \(config.name)")
+        try await gate.authenticate(reason: "Apply a plan to \(config.name)")
         let started = now()
         try setPlan(planId, to: .applying, pause: nil, note: "apply started") { $0.heartbeatAt = started }
         running.insert(planId)
@@ -76,7 +79,7 @@ extension Executor {
             return .draft
         }
         try setPlan(planId, to: .applying, pause: nil) { stored in
-            stored.reason = response.reason
+            if let text = Self.givenReason(response) { stored.reason = text }
             stored.verdicts = outcome.verdicts
             stored.verdictHash = outcome.verdictHash
             stored.confirmationLevel = outcome.level
@@ -92,7 +95,7 @@ extension Executor {
         }
         // Always Touch ID (spec D2, §4): automatic RATE/NETWORK resumes happen inside runLoop (pauseAndWait), never through
         // resume(), so a RATE/NETWORK pause that outlived its apply session (or a crash) still needs the owner.
-        try await gate.authenticate(reason: "Resume a price plan on \(config.name)")
+        try await gate.authenticate(reason: "Resume a plan on \(config.name)")
         running.insert(planId)
         lastHeartbeat[planId] = now()
         defer { finishRunning(planId) }
@@ -132,11 +135,18 @@ extension Executor {
                 stored.verdicts = outcome.verdicts
                 stored.verdictHash = outcome.verdictHash
                 stored.confirmationLevel = outcome.level
-                if let text = response.reason { stored.reason = text }
+                if let text = Self.givenReason(response) { stored.reason = text }
             }
         }
         try setPlan(planId, to: .applying, pause: nil, note: "resumed after \(reason.rawValue)")
         return try await runLoop(planId: planId, snapshot: outcome.snapshot)
+    }
+
+    /// The reason typed into a confirmation, or nil when it says nothing: an empty reason keeps the plan's own (the title a
+    /// clone draft is found by).
+    static func givenReason(_ response: ConfirmationResponse) -> String? {
+        guard let text = response.reason, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return text
     }
 
     /// Running plans pause at the next item boundary (an in-flight request finishes first).
@@ -196,6 +206,10 @@ extension Executor {
     /// One attempt at one item (spec §6 step 4).
     func process(seq: Int, context: inout RunContext) async throws -> ItemStep {
         let planId = context.planId
+        if let stored = ledgers[planId]?[seq], stored.state == .inFlight, case .createMetadataVersion = stored.item.payload {
+            // L3: a version POST without a reliable answer is only ever confirmed by reading (confirmVersionByRead).
+            return try await confirmVersionByRead(seq: seq, context: &context)
+        }
         guard let stored = ledgers[planId]?[seq], stored.state == .pending else { return .next }
         let item = stored.item
 
@@ -215,28 +229,40 @@ extension Executor {
         }
 
         let today = self.today
-        switch Reconciler.resolve(item, live: context.view.state(item.cell, today: today), today: today) {
-        case let .targetFound(ascId):
-            try setItem(planId, seq, to: .done, ascId: ascId, note: "reconciled: target already present")
-            context.view.set(item.cell, Reconciler.fillCreated(item.target, ascId: ascId))
-            return .next
-        case .diverged:
-            try setItem(planId, seq, to: .stale, note: "live state differs from before")
-            try skipDependents(of: seq, planId: planId, reason: "is stale")
-            return .next
-        case .unchanged:
-            break
-        }
-
-        let route = WritePaths.request(for: item.payload)
-        let body: Data?
+        let request: PreparedRequest
         do {
-            body = try WriteBodies.body(for: item.payload)?.data()
+            // L3: a text for a version this plan created starts from a read that shows the version.
+            try await readCreatedVersionBeforeText(item, context: &context)
+            switch Reconciler.resolve(item, live: context.view.state(item.cell, today: today), today: today) {
+            case let .targetFound(ascId):
+                try setItem(planId, seq, to: .done, ascId: ascId, note: "reconciled: target already present")
+                context.view.set(item.cell, Reconciler.fillCreated(item.target, ascId: ascId))
+                return .next
+            case .diverged:
+                try setItem(planId, seq, to: .stale, note: "live state differs from before")
+                try skipDependents(of: seq, planId: planId, reason: "is stale")
+                return .next
+            case .unchanged:
+                break
+            }
+            request = try await prepare(item, planId: planId, context: &context)
         } catch let error as WriteBodyError {
             // STRUCT rule (R1, I1, I3, O4, L1): such a request cannot be built, so it never leaves; re-plan fixes it.
             try setItem(planId, seq, to: .stale, note: "request cannot be built: \(error)")
             try skipDependents(of: seq, planId: planId, reason: "is stale")
             return .next
+        } catch let LocalizationResolverError.versionNotVisible(_, versionId) {
+            // Nothing was sent; the read is repeated after the wait, never a write.
+            try await pauseAndWait(.network, cause: "a read does not show version \(versionId) yet", context: &context)
+            return .retry
+        } catch let error as LocalizationResolverError {
+            try setItem(planId, seq, to: .stale, note: "text request cannot be resolved: \(error)")
+            try skipDependents(of: seq, planId: planId, reason: "is stale")
+            return .next
+        } catch let error as ASCError {
+            // A read before a text failed; nothing was sent.
+            try await waitAfterFailedRead(error, context: &context)
+            return .retry
         }
 
         // K5: ASCHTTPClient does not pace writes; the Executor draws from the workspace budget right before each write.
@@ -244,8 +270,8 @@ extension Executor {
         try step(.beforeSend(seq: seq))
         // Spec §5: the audit keeps keyId and jti, never the token; ASCHTTPClient puts this jti into the request's token.
         let tokenId = UUID().uuidString
-        let sent = HTTPSentPayload(method: route.method, path: route.path, op: item.op.rawValue, naturalKey: item.naturalKey,
-                                   attempt: stored.attempts + 1, body: body.map { String(decoding: $0, as: UTF8.self) },
+        let sent = HTTPSentPayload(method: request.method, path: request.path, op: item.op.rawValue, naturalKey: item.naturalKey,
+                                   attempt: stored.attempts + 1, body: request.body.map { String(decoding: $0, as: UTF8.self) },
                                    keyId: config.keyId, jti: tokenId)
         let refs = Self.refs(planId, item)
         let audit = self.audit
@@ -257,13 +283,14 @@ extension Executor {
         let createdId: String?
         do {
             let payload = item.payload
-            createdId = try await ASCRequestContext.$tokenId.withValue(tokenId) { try await self.send(payload) }
+            let localization = request.localization
+            createdId = try await ASCRequestContext.$tokenId.withValue(tokenId) { try await self.send(payload, localization: localization) }
         } catch let error as ASCError {
-            return try await handleWriteError(error, seq: seq, context: &context)
+            return try await handleWriteError(error, seq: seq, route: (request.method, request.path), context: &context)
         }
         try step(.afterResponse(seq: seq))
 
-        let received = HTTPReceivedPayload(method: route.method, path: route.path, status: nil, outcome: "ok", ascId: createdId, error: nil)
+        let received = HTTPReceivedPayload(method: request.method, path: request.path, status: nil, outcome: "ok", ascId: createdId, error: nil)
         try setItem(planId, seq, to: .done, ascId: createdId, note: "written", requestEvent: { db in
             try audit.append(.httpReceived, refs: refs, payload: received, in: db)
         })
@@ -275,8 +302,8 @@ extension Executor {
         return .next
     }
 
-    /// Exactly one ASC request; returns the id of a created row, offer or nothing.
-    func send(_ payload: WritePayload) async throws -> String? {
+    /// Exactly one ASC request; returns the id of a created row or offer, the written localization, or nothing.
+    func send(_ payload: WritePayload, localization: LocalizationRequest?) async throws -> String? {
         switch payload {
         case let .createRegularPrice(request): return try await writer.createRegularPrice(request).ascId
         case let .deleteRegularPrice(ascId): try await writer.deleteRegularPrice(ascId: ascId); return nil
@@ -287,21 +314,32 @@ extension Executor {
         case let .replacePromoPrices(ascId, prices): try await writer.replacePromotionalOfferPrices(ascId: ascId, prices: prices); return nil
         case let .deletePromo(ascId): try await writer.deletePromotionalOffer(ascId: ascId); return nil
         case let .replaceIAPSchedule(request): try await writer.replaceIAPPriceSchedule(request); return nil
+        case let .createMetadataVersion(owner): return try await writer.createMetadataVersion(owner: owner).ascId
+        case let .setLocalization(text):
+            guard let localization else { preconditionFailure("a SET_TEXT item is sent only after LocalizationResolver") }
+            switch localization {
+            case let .create(versionId):
+                return try await writer.createLocalization(versionId: versionId, owner: text.owner, locale: text.locale, text: text.text).ascId
+            case let .update(localizationId):
+                try await writer.updateLocalization(localizationId: localizationId, owner: text.owner, text: text.text)
+                return localizationId
+            }
         }
     }
 
     /// Spec §6 step 5: up to `verifyAttempts` reads of the product within `verifyWindowSeconds`; not found = Mismatch.
     func verify(product: String, context: inout RunContext) async throws {
         let planId = context.planId
-        var missing = Set((ledgers[planId] ?? [:]).values
+        let unverified = (ledgers[planId] ?? [:]).values
             .filter { $0.item.cell.productAscId == product && $0.state == .done && $0.verifiedAt == nil }
-            .map(\.item.seq))
+        var missing = Set(unverified.map(\.item.seq))
         guard !missing.isEmpty else { return }
+        let cells = Set(unverified.map(\.item.cell))
         try step(.beforeVerify(product: product))
         let spacing = AppleConstants.verifyWindowSeconds / Double(max(AppleConstants.verifyAttempts - 1, 1))
         for attempt in 1...AppleConstants.verifyAttempts {
             if attempt > 1 { try await waitWithHeartbeat(planId, seconds: spacing) }
-            guard let snapshot = try await verifyRead(product) else { continue }
+            guard let snapshot = try await verifyRead(product, cells: cells) else { continue }
             context.view.replace(snapshot: snapshot)
             let today = self.today
             var verified: [Int] = []
@@ -324,11 +362,12 @@ extension Executor {
         try step(.afterVerify(product: product))
     }
 
-    /// One verify read through SyncEngine (observations get recorded); nil when the read failed or was incomplete.
-    func verifyRead(_ product: String) async throws -> CatalogSnapshot? {
+    /// One verify read through SyncEngine (observations get recorded); nil when the read failed or missed a scope `cells`
+    /// need (a failed text read does not count against prices, nor a failed price read against texts).
+    func verifyRead(_ product: String, cells: Set<CellKey>) async throws -> CatalogSnapshot? {
         do {
             let result = try await sync.sync(trigger: .verify, scope: .products([product]))
-            guard result.status == .complete else { return nil }
+            guard result.isComplete(for: cells) else { return nil }
             return try catalog.latestSnapshot()
         } catch is ASCError {
             return nil

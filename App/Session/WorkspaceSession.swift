@@ -83,6 +83,9 @@ final class WorkspaceSession {
     var applyRevision = 0
     /// Touch ID of this Mac (AppEnvironment.gate) for every Executor and probe of the session.
     var biometricGate: any BiometricGate { environment.gate }
+    /// Set while a "New products" or "Clone" run, started in a window or over MCP, is in progress (`running`). Every
+    /// ProductCreator the session builds shares it, so a second creation or clone is refused until the first ends.
+    let productRuns = ProductRuns()
 
     /// The session owns its ApplyController (one per session); WorkspaceApplyHost only displays it.
     @ObservationIgnored private var storedApplyController: ApplyController?

@@ -32,4 +32,23 @@ public enum AppleConstants {
     public static let iapScheduleReplaceConfirmed = false
     /// OQ3: true after spike SL confirmed the sandboxed login item syncs from the shared App Group container.
     public static let loginItemSyncConfirmed = false
+    /// N2: locale shortcodes ASC accepts for localized metadata (developer.apple.com, "Managing metadata in your app by
+    /// using locale shortcodes", 50 languages); spike SL10n Q4.
+    public static let localizationLocales: Set<String> = [
+        "ar-SA", "bn-BD", "ca", "zh-Hans", "zh-Hant", "hr", "cs", "da", "nl-NL", "en-AU", "en-CA", "en-GB", "en-US", "fi",
+        "fr-FR", "fr-CA", "de-DE", "el", "gu-IN", "he", "hi", "hu", "id", "it", "ja", "kn-IN", "ko", "ms", "ml-IN", "mr-IN",
+        "no", "or-IN", "pl", "pt-BR", "pt-PT", "pa-IN", "ro", "ru", "sk", "sl-SI", "es-MX", "es-ES", "sv", "ta-IN", "te-IN",
+        "th", "tr", "uk", "ur-PK", "vi",
+    ]
+    /// N3: (minimum name, maximum name, maximum description); nil = Apple publishes no limit (groups). Spike SL10n Q4.
+    public static let localizationLimits: [LocalizationOwnerKind: (nameMin: Int, nameMax: Int, descriptionMax: Int)?] = [
+        .subscription: (2, 30, 45), .iap: (2, 30, 45), .group: nil,
+    ]
+    /// Whether a new version of an approved product starts with a copy of the live localizations. It stays false until a
+    /// live trial of a new version of an approved product (which needs the owner's written approval) shows that Apple
+    /// copies them; no step of spike SL10n creates such a version. While false: the Planner carries every unchanged Live
+    /// locale over into a new version (PlanBuilder+NewVersion), and LocalizationSemantics.matchesMissingCopy accepts a new
+    /// version without the locale's row. Either way the Executor reads the owner after the version exists: the ids of
+    /// copied rows are known only from a read.
+    public static let newVersionCopiesLocalizations = false
 }

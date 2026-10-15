@@ -64,6 +64,24 @@ struct OutcomeTests {
         #expect(!ItemEffectiveness.inSnapshot(stored(.deleteRegularPrice(ascId: "old"), .done), snapshot: snapshot, today: day("2026-11-16")))
     }
 
+    @Test func aVerifiedTextIsStillPresentOnlyWhileTheLiveTextCarriesIt() {
+        let owner = LocalizationOwner.subscription("sub-y")
+        let draft = MetadataVersion(ascId: "ver-sub-y-1", owner: owner, number: 1, state: .prepareForSubmission)
+        let state = CellState.localization(live: nil, pending: nil, pendingVersion: draft)
+        let write = SetLocalization(owner: owner, locale: "en-US", text: LocalizationText(name: "New"), localizationId: nil, versionId: draft.ascId)
+        let item = StoredItem(planId: "p", item: PlannedItem(seq: 1, cell: .localization(owner: owner, locale: "en-US"), payload: .setLocalization(write),
+                                                             before: state, target: state),
+                              state: .done, attempts: 1, ascId: "loc-sub-y-1-en-US", errorJSON: nil, verifiedAt: Date(), effectiveAt: nil,
+                              supersededBy: nil)
+        func snapshot(pendingName: String) -> CatalogSnapshot {
+            var catalog = SyntheticCatalog()
+            catalog.addTexts(owner, live: [:], pending: ["en-US": LocalizationText(name: pendingName)], pendingState: .prepareForSubmission)
+            return catalog.snapshot()
+        }
+        #expect(ItemEffectiveness.stillPresent(item, snapshot: snapshot(pendingName: "New"), today: SyntheticCatalog.today))
+        #expect(!ItemEffectiveness.stillPresent(item, snapshot: snapshot(pendingName: "Changed in ASC"), today: SyntheticCatalog.today))
+    }
+
     @Test func scheduledPlanBecomesEffectiveOneDayAfterTheLastDate() async throws {
         let h = try await ExecutorHarness.make()
         let (planId, _) = try await Scenarios.plan(h, cells: [Scenarios.newRegularPrice(sub: "sub-y", territory: "GBR", pointIndex: 14, start: "2026-11-15")])
@@ -249,4 +267,13 @@ private struct SecondWriteRefused: ASCWriting {
     func replacePromotionalOfferPrices(ascId: String, prices: [NewPromoPrice]) async throws { try await inner.replacePromotionalOfferPrices(ascId: ascId, prices: prices) }
     func deletePromotionalOffer(ascId: String) async throws { try await inner.deletePromotionalOffer(ascId: ascId) }
     func replaceIAPPriceSchedule(_ r: NewIAPSchedule) async throws { try await inner.replaceIAPPriceSchedule(r) }
+    func createLocalization(versionId: String, owner: LocalizationOwner, locale: String, text: LocalizationText) async throws -> LocalizationRow {
+        try await inner.createLocalization(versionId: versionId, owner: owner, locale: locale, text: text)
+    }
+    func updateLocalization(localizationId: String, owner: LocalizationOwner, text: LocalizationText) async throws {
+        try await inner.updateLocalization(localizationId: localizationId, owner: owner, text: text)
+    }
+    func createMetadataVersion(owner: LocalizationOwner) async throws -> MetadataVersion {
+        try await inner.createMetadataVersion(owner: owner)
+    }
 }

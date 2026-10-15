@@ -1,0 +1,2 @@
+{"data": {"type": "subscriptionGroupLocalizations", "id": "{{LOCALIZATION}}",
+  "attributes": {"name": "{{NAME}}", "customAppName": "{{CUSTOM_APP_NAME}}"}}}

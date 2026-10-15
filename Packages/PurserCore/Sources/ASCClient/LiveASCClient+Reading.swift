@@ -25,11 +25,13 @@ extension LiveASCClient {
         await http.appGuard.allowProducts(Set(headers.map(\.id)))
         var result: [SubscriptionInfo] = []
         for header in headers {
-            let territories = try await availableTerritories(subscriptionId: header.id)
+            let territories = try await subscriptionAvailability(subscriptionId: header.id)?.territories ?? []
             let monthly = try await monthlyPlanAvailable(subscriptionId: header.id)
             result.append(SubscriptionInfo(ascId: header.id, productId: header.productId, name: header.name, period: header.period,
                                            state: header.state, groupId: group.id, groupName: group.referenceName,
-                                           availableTerritories: territories, monthlyPlanAvailable: monthly))
+                                           availableTerritories: territories, monthlyPlanAvailable: monthly,
+                                           familySharable: header.familySharable, reviewNote: header.reviewNote,
+                                           groupLevel: header.groupLevel))
         }
         return result
     }
@@ -116,19 +118,6 @@ extension LiveASCClient {
 
     // MARK: - Subscription details
 
-    private func availableTerritories(subscriptionId: String) async throws -> Set<TerritoryCode> {
-        let availability: JSONAPIDocument
-        do {
-            availability = try await http.get(ASCPath.subscriptionAvailability(subscriptionId), query: [])
-        } catch ASCError.http(status: 404, code: _, title: _, detail: _) {
-            return []
-        }
-        guard let availabilityId = availability.data.first?.id else { return [] }
-        await http.appGuard.allowChildren([availabilityId])
-        let pages = try await http.getAll(ASCPath.availableTerritories(availability: availabilityId), query: [Self.limit200])
-        return Set(pages.flatMap(\.data).map { TerritoryCode($0.id) })
-    }
-
     private func monthlyPlanAvailable(subscriptionId: String) async throws -> Bool {
         do {
             return ASCMapping.hasMonthlyPlan(try await http.getAll(ASCPath.planAvailabilities(subscriptionId), query: [Self.limit200]))
@@ -146,6 +135,9 @@ enum ASCMapping {
         var name: String
         var period: SubscriptionPeriod
         var state: ProductState
+        var familySharable: Bool?
+        var reviewNote: String?
+        var groupLevel: Int?
     }
 
     static func app(_ document: JSONAPIDocument) throws -> ASCApp {
@@ -172,7 +164,9 @@ enum ASCMapping {
                 throw ASCError.decoding("subscriptions \(resource.id): unknown subscriptionPeriod")
             }
             return SubscriptionHeader(id: resource.id, productId: resource.string("productId") ?? "", name: resource.string("name") ?? "",
-                                      period: period, state: ProductState(resource.string("state") ?? "UNKNOWN"))
+                                      period: period, state: ProductState(resource.string("state") ?? "UNKNOWN"),
+                                      familySharable: resource.bool("familySharable"), reviewNote: resource.string("reviewNote"),
+                                      groupLevel: resource.int("groupLevel"))
         }
     }
 
@@ -259,7 +253,8 @@ enum ASCMapping {
     static func inAppPurchases(_ pages: [JSONAPIDocument]) -> [IAPInfo] {
         pages.flatMap(\.data).map { resource in
             IAPInfo(ascId: resource.id, productId: resource.string("productId") ?? "", name: resource.string("name") ?? "",
-                    iapType: resource.string("inAppPurchaseType") ?? "", state: ProductState(resource.string("state") ?? "UNKNOWN"))
+                    iapType: resource.string("inAppPurchaseType") ?? "", state: ProductState(resource.string("state") ?? "UNKNOWN"),
+                    familySharable: resource.bool("familySharable"), reviewNote: resource.string("reviewNote"))
         }
     }
 

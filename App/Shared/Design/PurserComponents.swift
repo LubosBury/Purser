@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// Status pill (docs/design/components/Badge.md): always a word; danger, warning and success add an icon of a different shape.
+/// `icon` (an SF Symbol) gives a neutral or info badge its own shape, or replaces the kind's icon.
 struct PurserBadge: View {
     enum Kind { case neutral, info, success, warning, danger }
 
     let text: String
     var kind: Kind = .neutral
+    var icon: String?
 
     var body: some View {
         HStack(spacing: PurserSpacing.space1) {
@@ -21,6 +23,7 @@ struct PurserBadge: View {
     }
 
     private var symbol: String? {
+        if let icon { return icon }
         switch kind {
         case .neutral, .info: return nil
         case .success: return "checkmark"

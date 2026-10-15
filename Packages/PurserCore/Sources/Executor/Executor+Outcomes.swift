@@ -73,9 +73,10 @@ extension Executor {
                     note: "row removed by plan \(remover.planId)", mutate: { $0.supersededBy = remover.planId })
     }
 
-    func freshSnapshot(products: Set<String>) async throws -> CatalogSnapshot {
-        let result = try await sync.sync(trigger: .plan, scope: .products(products))
-        guard result.status == .complete else { throw ExecutorError.syncIncomplete(result.status) }
+    /// A targeted sync of the products of `cells`; only the scopes those cells need must be complete.
+    func freshSnapshot(cells: [CellKey]) async throws -> CatalogSnapshot {
+        let result = try await sync.sync(trigger: .plan, scope: .products(Set(cells.map(\.productAscId))))
+        guard result.isComplete(for: cells) else { throw ExecutorError.syncIncomplete(result.status) }
         guard let snapshot = try catalog.latestSnapshot() else { throw ExecutorError.noSnapshot }
         return snapshot
     }
@@ -103,8 +104,7 @@ extension Executor {
             importSpec.table = freshTable
             spec = .importTable(importSpec)
         }
-        let products = Set(try store.items(planId: planId).map { $0.item.cell.productAscId })
-        let snapshot = try await freshSnapshot(products: products)
+        let snapshot = try await freshSnapshot(cells: try store.items(planId: planId).map(\.item.cell))
         let today = self.today
         // The Planner has no database: a WITHDRAW spec needs the stored items of the plan it refers to (K9 referencedItems).
         var referenced: [String: [StoredItem]] = [:]
@@ -149,7 +149,7 @@ extension Executor {
         let items = try store.items(planId: planId)
         let seqs = items.filter { $0.state == .done && Self.isFutureDated($0.item, today: today) }.map(\.item.seq).sorted()
         guard !seqs.isEmpty else { throw ExecutorError.nothingToWithdraw }
-        let snapshot = try await freshSnapshot(products: Set(items.map { $0.item.cell.productAscId }))
+        let snapshot = try await freshSnapshot(cells: items.map(\.item.cell))
         let draft = try planner.plan(.withdraw(WithdrawPlanSpec(planId: planId, itemSeqs: seqs)),
                                      context: PlanningContext(snapshot: snapshot, config: config, today: today,
                                                               rateLimit: await budget?.latest, referencedItems: [planId: items]))

@@ -5,10 +5,37 @@ import Domain
 import PurserSecurity
 import PurserTestSupport
 
+/// Answers every request with `status` and `body` from the URL `moved` gives for the request's URL, as a session that
+/// followed a redirect would; records every request it got.
+private final class MovedAnswerTransport: HTTPTransport, Sendable {
+    let status: Int
+    let body: String
+    let moved: @Sendable (URL) -> URL
+    let requests = Locked<[URLRequest]>([])
+
+    init(status: Int = 200, body: String, moved: @escaping @Sendable (URL) -> URL) {
+        self.status = status; self.body = body; self.moved = moved
+    }
+
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        requests.update { $0.append(request) }
+        let url = moved(request.url!)
+        return (Data(body.utf8), HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!)
+    }
+}
+
+private func replacing(_ url: URL, scheme: String? = nil, host: String? = nil, path: String? = nil) -> URL {
+    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+    if let scheme { components.scheme = scheme }
+    if let host { components.host = host }
+    if let path { components.path = path }
+    return components.url!
+}
+
 @Suite struct ASCHTTPClientTests {
     private let base = "https://api.appstoreconnect.apple.com"
 
-    private func makeClient(_ transport: FakeTransport, readOnly: Bool = true) throws -> (ASCHTTPClient, RateBudget) {
+    private func makeClient(_ transport: any HTTPTransport, readOnly: Bool = true) throws -> (ASCHTTPClient, RateBudget) {
         let clock = ManualClock(Date(timeIntervalSince1970: 1_791_547_200))
         let signer = try JWTSigner(keyId: "ABCDEF1234", identity: .team(issuerId: "issuer-1"), privateKeyPEM: TestKeys.makeKey().pem)
         let budget = RateBudget(now: { clock.now() }, sleep: { try await clock.sleep($0) })
@@ -242,5 +269,63 @@ import PurserTestSupport
         try await client.appGuard.check(method: "DELETE", path: "/v1/subscriptionPrices/price-9", body: nil)
         #expect(transport.requests.first?.headers["Authorization"]?.hasPrefix("Bearer ") == true)
         #expect(await client.requestCount == 3)
+    }
+
+    // MARK: - Cached and redirected answers
+
+    @Test func everyRequestAsksForAFreshAnswerNeverACachedOne() async throws {
+        let transport = MovedAnswerTransport(body: #"{"data":[]}"#) { $0 }
+        let (client, _) = try makeClient(transport, readOnly: false)
+        _ = try await client.get("/v1/territories", query: [])
+        await client.appGuard.allowProducts(["6500000001"])
+        let body = Data(#"{"data":{"type":"subscriptionPrices","relationships":{"subscription":{"data":{"type":"subscriptions","id":"6500000001"}}}}}"#.utf8)
+        _ = try await client.send(method: "POST", path: "/v1/subscriptionPrices", body: body)
+        await client.appGuard.allowChildren(["price-1"])
+        try await client.delete(path: "/v1/subscriptionPrices/price-1")
+        let policies = transport.requests.value.map(\.cachePolicy)
+        #expect(policies == Array(repeating: .reloadIgnoringLocalAndRemoteCacheData, count: 3))
+    }
+
+    @Test(arguments: [("host", "https", "api.example.com", "/v1/apps/6400000001/subscriptionGroups"),
+                      ("scheme", "http", "api.appstoreconnect.apple.com", "/v1/apps/6400000001/subscriptionGroups"),
+                      ("path", "https", "api.appstoreconnect.apple.com", "/v1/apps/6400000001/inAppPurchasesV2")])
+    func aReadAnsweredFromAnotherURLIsRefusedBeforeItsIdsAreLearned(changed: String, scheme: String, host: String, path: String) async throws {
+        let transport = MovedAnswerTransport(body: #"{"data":[{"type":"subscriptionGroups","id":"7000000009"}]}"#) { url in
+            replacing(url, scheme: scheme, host: host, path: path)
+        }
+        let (client, _) = try makeClient(transport)
+        await #expect(throws: ASCError.network(description: "answer from another URL", maybeSent: true), "another \(changed)") {
+            _ = try await client.get("/v1/apps/6400000001/subscriptionGroups", query: [URLQueryItem(name: "limit", value: "200")])
+        }
+        await #expect(throws: ASCError.foreignResource("/v1/subscriptionGroups/7000000009")) {
+            try await client.appGuard.check(method: "GET", path: "/v1/subscriptionGroups/7000000009", body: nil)
+        }
+        #expect(transport.requests.value.count == 1)
+    }
+
+    @Test func aWriteAnsweredFromAnotherURLIsMaybeSentAndItsIdIsNotLearned() async throws {
+        let transport = MovedAnswerTransport(status: 201, body: #"{"data":{"type":"subscriptionPrices","id":"price-new"}}"#) { url in
+            replacing(url, path: "/v1/subscriptionPrices/elsewhere")
+        }
+        let (client, _) = try makeClient(transport, readOnly: false)
+        await client.appGuard.allowProducts(["6500000001"])
+        let body = Data(#"{"data":{"type":"subscriptionPrices","relationships":{"subscription":{"data":{"type":"subscriptions","id":"6500000001"}}}}}"#.utf8)
+        await #expect(throws: ASCError.network(description: "answer from another URL", maybeSent: true)) {
+            _ = try await client.send(method: "POST", path: "/v1/subscriptionPrices", body: body)
+        }
+        await #expect(throws: ASCError.foreignResource("/v1/subscriptionPrices/price-new")) {
+            try await client.appGuard.check(method: "DELETE", path: "/v1/subscriptionPrices/price-new", body: nil)
+        }
+    }
+
+    @Test func anAnswerFromTheSameURLWithAnotherQueryIsAccepted() async throws {
+        let transport = MovedAnswerTransport(body: #"{"data":[{"type":"territories","id":"USA","attributes":{"currency":"USD"}}]}"#) { url in
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            components.queryItems = [URLQueryItem(name: "limit", value: "50")]
+            return components.url!
+        }
+        let (client, _) = try makeClient(transport)
+        let document = try await client.get("/v1/territories", query: [URLQueryItem(name: "limit", value: "200")])
+        #expect(document.data.map(\.id) == ["USA"])
     }
 }

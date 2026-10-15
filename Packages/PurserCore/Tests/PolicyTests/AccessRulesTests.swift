@@ -37,6 +37,25 @@ import PurserTestSupport
         #expect(A5ProductStateRule().evaluate(context(inReview, [item])).map(\.severity) == [.block(.plan)])
     }
 
+    @Test func a5ForTextsOfASubscriptionGroupNeedsOnlyTheGroup() {
+        var catalog = basicCatalog()
+        catalog.addGroup()
+        let snapshot = catalog.snapshot()
+        // No localization payload exists before localization plans; A5 reads only the cell, so a stand-in payload serves.
+        func text(_ owner: LocalizationOwner) -> PlannedItem {
+            PlannedItem(seq: 1, cell: .localization(owner: owner, locale: "en-US"), payload: .deletePromo(ascId: "unused"),
+                        before: .localization(live: nil, pending: nil, pendingVersion: nil),
+                        target: .localization(live: nil, pending: nil, pendingVersion: nil))
+        }
+        #expect(A5ProductStateRule().evaluate(context(snapshot, [text(.group("group-1"))])).isEmpty)
+        let missing = A5ProductStateRule().evaluate(context(snapshot, [text(.group("group-9"))]))
+        #expect(missing.map(\.severity) == [.block(.plan)])
+        #expect(missing.map(\.message) == ["The subscription group group-9 is not in the catalog."])
+        #expect(A5ProductStateRule().evaluate(context(snapshot, [text(.subscription("s"))])).isEmpty)
+        let inReview = basicCatalog(state: .waitingForReview).snapshot()
+        #expect(A5ProductStateRule().evaluate(context(inReview, [text(.subscription("s"))])).map(\.severity) == [.block(.plan)])
+    }
+
     @Test func a6() {
         #expect(A6AvailabilityRule().evaluate(context(snapshot, [post])).isEmpty)
         var catalog = basicCatalog()

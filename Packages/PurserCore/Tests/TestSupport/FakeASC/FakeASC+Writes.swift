@@ -56,6 +56,7 @@ extension FakeASC {
 
     func handleWrite(method: String, path: String, body: Data?) throws -> FakeReply {
         let c = components(path)
+        if let reply = try handleLocalizationWrite(method: method, path: path, body: body) { return reply }
         if method == "POST", capture(c, ["v1", "subscriptionPrices"]) != nil { return try postRegular(body) }
         if method == "DELETE", let id = capture(c, ["v1", "subscriptionPrices", "*"]) { return try deleteRegular(id) }
         if method == "POST", capture(c, ["v1", "subscriptionIntroductoryOffers"]) != nil { return try postIntro(body) }
@@ -65,6 +66,8 @@ extension FakeASC {
         if method == "PATCH", let id = capture(c, ["v1", "subscriptionPromotionalOffers", "*"]) { return try patchPromo(id, body) }
         if method == "DELETE", let id = capture(c, ["v1", "subscriptionPromotionalOffers", "*"]) { return try deletePromo(id) }
         if method == "POST", capture(c, ["v1", "inAppPurchasePriceSchedules"]) != nil { return try postSchedule(body) }
+        if let reply = try handleProductWrite(method: method, components: c, body: body) { return reply }
+        if method == "POST", let kind = metadataVersionKind(c) { return try postMetadataVersion(kind, body) }
         throw notFound()
     }
 

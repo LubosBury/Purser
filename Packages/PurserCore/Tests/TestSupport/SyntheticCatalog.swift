@@ -19,6 +19,8 @@ public struct SyntheticCatalog {
     public var iapSchedules: [String: IAPSchedule] = [:]
     public var pricePoints: [PricePoint] = []
     public var offerCodes: Set<String> = []
+    public var groups: [String: SubscriptionGroupInfo] = [:]
+    public var metadata: [LocalizationOwner: OwnerMetadata] = [:]
 
     public init() {}
 
@@ -98,9 +100,32 @@ public struct SyntheticCatalog {
         for t in manual.keys where territories[t] == nil { territories[t] = "USD" }
     }
 
+    /// A subscription group; addSubscription puts every subscription into "group-1".
+    public mutating func addGroup(_ ascId: String = "group-1", name: String = "Synthetic group") {
+        groups[ascId] = SubscriptionGroupInfo(ascId: ascId, referenceName: name)
+    }
+
+    /// The owner's versions and texts: a live version with `live` (none when empty), then, with `pendingState`, a newer
+    /// version with `pending`. Ids: "ver-<owner id>-<number>" and "loc-<owner id>-<number>-<locale>".
+    public mutating func addTexts(_ owner: LocalizationOwner, live: [String: LocalizationText], pending: [String: LocalizationText] = [:],
+                                  pendingState: MetadataVersionState? = nil) {
+        var versions: [MetadataVersion] = []
+        var rows: [LocalizationRow] = []
+        func add(_ state: MetadataVersionState, _ texts: [String: LocalizationText]) {
+            let number = versions.count + 1
+            let id = "ver-\(owner.ascId)-\(number)"
+            versions.append(MetadataVersion(ascId: id, owner: owner, number: number, state: state))
+            rows += texts.map { LocalizationRow(ascId: "loc-\(owner.ascId)-\(number)-\($0.key)", owner: owner, versionId: id, locale: $0.key, text: $0.value) }
+        }
+        if !live.isEmpty { add(.approved, live) }
+        if let pendingState { add(pendingState, pending) }
+        metadata[owner] = OwnerMetadata(owner: owner, versions: versions, localizations: rows)
+    }
+
     public func snapshot() -> CatalogSnapshot {
         CatalogSnapshot(syncId: syncId, takenAt: SyntheticCatalog.today.startOfDayUTC, subscriptions: subscriptions, iaps: iaps,
                         territories: territories, regularRows: regularRows, introRows: introRows, promoOffers: promoOffers,
-                        iapSchedules: iapSchedules, pricePoints: PricePointIndex(pricePoints), offerCodesEverSeen: offerCodes)
+                        iapSchedules: iapSchedules, pricePoints: PricePointIndex(pricePoints), offerCodesEverSeen: offerCodes,
+                        groups: groups, metadata: metadata)
     }
 }

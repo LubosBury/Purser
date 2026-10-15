@@ -21,14 +21,16 @@ enum PricingKind: String, CaseIterable, Identifiable {
 struct NewPlanSheet: View {
     @Bindable var model: PlanningModel
     let prefill: FixPrefill?
+    let localizationOwner: LocalizationOwner?
     @Environment(\.dismiss) private var dismiss
 
     enum Tab: String, CaseIterable, Identifiable {
-        case regular = "Regular price", intro = "Introductory offer", promo = "Promotional offer", iap = "One-time purchase", importTable = "Table import"
+        case regular = "Regular price", intro = "Introductory offer", promo = "Promotional offer", iap = "One-time purchase", importTable = "Table import",
+             localization = "Localizations"
         var id: String { rawValue }
     }
 
-    @State private var tab: Tab = .regular
+    @State private var tab: Tab
     @State private var selectedProducts: Set<String> = []
     @State private var territoryText = ""
     @State private var canary = false
@@ -55,6 +57,14 @@ struct NewPlanSheet: View {
     @State private var introEnd = Date().addingTimeInterval(90 * 86_400)
     @State private var introNominal = ""
 
+    /// `tab` is where the sheet opens; it is set here so that no other tab renders (and starts loading) for a first frame.
+    init(model: PlanningModel, prefill: FixPrefill?, localizationOwner: LocalizationOwner? = nil, tab: Tab? = nil) {
+        self.model = model
+        self.prefill = prefill
+        self.localizationOwner = localizationOwner
+        _tab = State(initialValue: tab ?? .regular)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             WorkspaceBanner(config: model.config)
@@ -77,6 +87,8 @@ struct NewPlanSheet: View {
                 IAPPlanHost(planning: model) { dismiss() }
             case .regular:
                 RegularPlanHost(planning: model) { dismiss() }
+            case .localization:
+                LocalizationPlanHost(planning: model, owner: localizationOwner) { dismiss() }
             case .importTable, .intro:
                 legacyForm
             }
@@ -94,7 +106,7 @@ struct NewPlanSheet: View {
             switch tab {
             case .importTable: importTab
             case .intro: introTab
-            case .promo, .iap, .regular: EmptyView()
+            case .promo, .iap, .regular, .localization: EmptyView()
             }
             if !problems.isEmpty {
                 VStack(alignment: .leading, spacing: PurserSpacing.space1) {
@@ -290,6 +302,7 @@ struct NewPlanSheet: View {
         case .promo: spec = nil   // M4: PromoPlanTab builds and saves promo plans itself
         case .iap: spec = nil   // M4: IAPPlanTab builds and saves IAP plans itself
         case .regular: spec = nil   // M4: RegularPlanTab builds and saves regular price plans itself
+        case .localization: spec = nil   // L2: LocalizationPlanTab builds and saves L10N plans itself
         }
         guard problems.isEmpty, let spec else { return nil }
         if let prefill { return .fix(findingIds: prefill.findingIds, underlying: spec) }

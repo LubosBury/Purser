@@ -22,7 +22,7 @@ public struct Planner: Sendable {
         }
         let builderVerdicts = builder.verdicts
         var excluded = Set(builderVerdicts.compactMap { Self.isBlockCell($0) ? $0.cell : nil })
-        let first = Exclusion.apply(excluded, to: builder.sink.items)
+        let first = OrphanVersions.prune(Exclusion.apply(excluded, to: builder.sink.items))
         var items = first.items
         excluded.formUnion(first.excluded)
 
@@ -36,7 +36,7 @@ public struct Planner: Sendable {
             let blocked = Set(policyVerdicts.compactMap { Self.isBlockCell($0) ? $0.cell : nil }).intersection(itemCells)
             if blocked.isEmpty { break }
             exclusionVerdicts += policyVerdicts.filter { Self.isBlockCell($0) && $0.cell.map(blocked.contains) == true }
-            let result = Exclusion.apply(blocked, to: items)
+            let result = OrphanVersions.prune(Exclusion.apply(blocked, to: items))
             items = result.items
             excluded.formUnion(result.excluded)
         }

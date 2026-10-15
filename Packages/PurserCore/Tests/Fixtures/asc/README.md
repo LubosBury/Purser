@@ -23,10 +23,13 @@ Every file carries the key `"x-purser-fixture"`, which the JSON:API decoder igno
 | `iapBaseTerritory.json` | `GET /v1/inAppPurchasePriceSchedules/{id}/baseTerritory` | hand-written, replace with the shape from S0 |
 | `iapManualPrices.json` | `GET /v1/inAppPurchasePriceSchedules/{id}/manualPrices` | hand-written, replace with the shape from S0 |
 | `iapPricePoints.json` | `GET /v2/inAppPurchases/{id}/pricePoints` | hand-written, replace with the shape from S0 |
+| `subscriptionVersions-6500000001.json` | `GET /v1/subscriptions/{id}/versions` with `include=localizations` | hand-written in L1 (versions 1 retired, 2 live, 3 editable), replace with a recorded response |
+| `inAppPurchaseVersions-6600000001.json` | `GET /v2/inAppPurchases/{id}/versions` with `include=localizations` | hand-written in L1, replace with a recorded response |
+| `subscriptionGroupVersions-7000000001.json` | `GET /v1/subscriptionGroups/{id}/versions` with `include=localizations` | hand-written in L1 (version 2 waiting for review), replace with a recorded response |
 
 **Recorded responses** (spike S0) are in `recorded/` (recorded by `Tools/record-fixture.sh asc/recorded/<name> <path> [query]`):
 `<name>.json` is the response body after redaction (`Tools/redact-fixture.py` replaces names, product ids, bundle ids, SKUs, reference
-names and offer codes) and anonymization (`Tools/anonymize-fixture.py`: every id except territory codes is a synthetic `syn-…`,
+names, offer codes, review notes, descriptions and custom app names) and anonymization (`Tools/anonymize-fixture.py`: every id except territory codes is a synthetic `syn-…`,
 the same id has the same replacement in every file; `customerPrice`, `proceeds` and `proceedsYear2` come from the synthetic
 ladder `1.11, 2.11, …` with the order preserved), `<name>.meta.json` holds the path (with synthetic ids), the query, the HTTP status
 and the `X-Rate-Limit` header. Only the products of the "Purser Spike" group and the territory list are recorded, never production subscriptions.

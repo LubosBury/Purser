@@ -11,6 +11,7 @@ struct Observed: Sendable {
         case intro(IntroOfferRow)
         case promo(PromoOffer)
         case schedule(IAPSchedule)
+        case localization(LocalizationRow)
     }
 
     let ascId: String
@@ -37,6 +38,10 @@ struct Observed: Sendable {
             ascId = value.iapId
             cell = .iapSchedule(iapId: value.iapId)
             rawJSON = try JSONCoding.string(value)
+        case let .localization(value):
+            ascId = value.ascId
+            cell = .localization(owner: value.owner, locale: value.locale)
+            rawJSON = try JSONCoding.string(value)
         }
     }
 
@@ -46,6 +51,7 @@ struct Observed: Sendable {
         case ObservationKind.intro: return .intro(try JSONCoding.decode(IntroOfferRow.self, from: rawJSON))
         case ObservationKind.promo: return .promo(try JSONCoding.decode(PromoOffer.self, from: rawJSON))
         case ObservationKind.iapSchedule: return .schedule(try JSONCoding.decode(IAPSchedule.self, from: rawJSON))
+        case ObservationKind.localization: return .localization(try JSONCoding.decode(LocalizationRow.self, from: rawJSON))
         default: throw StoreError.corruptValue(table: "observation", column: "kind", value: kind)
         }
     }
@@ -54,12 +60,13 @@ struct Observed: Sendable {
         SHA256.hash(data: Data(rawJSON.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// Czech label used in finding messages.
+    /// Label used in finding messages.
     static func label(kind: String) -> String {
         switch kind {
         case ObservationKind.price: return "Regular price row"
         case ObservationKind.intro: return "Intro offer"
         case ObservationKind.promo: return "Promo offer"
+        case ObservationKind.localization: return "Localization"
         default: return "IAP price schedule"
         }
     }
@@ -83,8 +90,15 @@ struct PurserItems: Sendable {
     }
 
     /// The row was created or changed by a Purser item: same asc id, or the natural key of a create/end/reprice/replace.
-    func explainsAppearance(_ observed: Observed) -> Bool {
-        if ascIds.contains(observed.ascId) { return true }
+    /// A text seen for the first time also counts when Purser created it or the version it sits in (the item's asc id is the
+    /// localization's or the version's id). A text whose asc id was observed before (`seenBefore`) counts only through the
+    /// natural key of a SET_TEXT that wrote exactly this text, so an outside edit of a text Purser wrote stays EXTERNAL.
+    func explainsAppearance(_ observed: Observed, seenBefore: Bool) -> Bool {
+        if case let .localization(row) = observed.row {
+            if !seenBefore, ascIds.contains(observed.ascId) || ascIds.contains(row.versionId) { return true }
+        } else if ascIds.contains(observed.ascId) {
+            return true
+        }
         return Self.appearanceKeys(observed.row).contains { naturalKeys.contains($0) }
     }
 
@@ -94,7 +108,7 @@ struct PurserItems: Sendable {
         case let .price(value): return naturalKeys.contains(NaturalKey.of(.deleteRegularPrice(ascId: value.ascId)))
         case let .intro(value): return naturalKeys.contains(NaturalKey.of(.deleteIntro(ascId: value.ascId)))
         case let .promo(value): return naturalKeys.contains(NaturalKey.of(.deletePromo(ascId: value.ascId)))
-        case .schedule: return false
+        case .schedule, .localization: return false
         }
     }
 
@@ -128,6 +142,10 @@ struct PurserItems: Sendable {
                 manualPrices: value.manualPrices.map {
                     NewIAPManualPrice(territory: $0.territory, pricePointId: $0.pricePointId, startDate: $0.startDate, endDate: $0.endDate)
                 })))]
+        case let .localization(value):
+            // A text a SET_TEXT item wrote, also when the item crashed before its asc_id was stored.
+            return [NaturalKey.of(.setLocalization(SetLocalization(owner: value.owner, locale: value.locale, text: value.text,
+                                                                  localizationId: nil, versionId: nil)))]
         }
     }
 }

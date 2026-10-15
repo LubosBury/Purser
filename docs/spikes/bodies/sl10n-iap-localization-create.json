@@ -1,0 +1,3 @@
+{"data": {"type": "inAppPurchaseLocalizations",
+  "attributes": {"locale": "{{LOCALE}}", "name": "{{NAME}}", "description": "{{DESCRIPTION}}"},
+  "relationships": {"version": {"data": {"type": "inAppPurchaseVersions", "id": "{{VERSION}}"}}}}}

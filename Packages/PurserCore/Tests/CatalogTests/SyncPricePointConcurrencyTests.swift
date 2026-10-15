@@ -40,6 +40,12 @@ private final class SlowPricePointReader: ASCReading, RequestCounting, Sendable 
     func iapPricePoints(iapId: String, territories: [TerritoryCode]) async throws -> [PricePoint] {
         try await slowly { try await base.iapPricePoints(iapId: iapId, territories: territories) }
     }
+    func subscriptionAvailability(subscriptionId: String) async throws -> ProductAvailability? {
+        try await base.subscriptionAvailability(subscriptionId: subscriptionId)
+    }
+    func iapAvailability(iapId: String) async throws -> ProductAvailability? { try await base.iapAvailability(iapId: iapId) }
+    func reviewScreenshot(of owner: LocalizationOwner) async throws -> ReviewScreenshot? { try await base.reviewScreenshot(of: owner) }
+    func metadata(owner: LocalizationOwner) async throws -> OwnerMetadata { try await base.metadata(owner: owner) }
 }
 
 @Suite struct SyncPricePointConcurrencyTests {

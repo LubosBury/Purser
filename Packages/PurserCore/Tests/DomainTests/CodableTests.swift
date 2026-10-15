@@ -30,8 +30,24 @@ import Domain
             .intro(subscriptionId: "6500000001", territory: "CZE", planType: .monthly),
             .promo(subscriptionId: "6500000002", offerCode: "WINBACK_v1"),
             .iapSchedule(iapId: "6600000001"),
+            .localization(owner: .subscription("6500000001"), locale: "en-US"),
+            .metadataVersion(owner: .group("7000000001")),
         ]
         #expect(try roundTrip(keys) == keys)
+    }
+
+    @Test func localizationCellStateRoundTrips() throws {
+        let version = MetadataVersion(ascId: "ver-2", owner: .subscription("6500000001"), number: 2, state: .prepareForSubmission)
+        let live = LocalizationRow(ascId: "loc-1", owner: .subscription("6500000001"), versionId: "ver-1", locale: "cs",
+                                   text: LocalizationText(name: "Ročně", description: "Celý rok ovoce"))
+        var pending = live
+        pending.ascId = "loc-2"
+        pending.versionId = "ver-2"
+        pending.text.name = "Roční"
+        let states: [CellState] = [.localization(live: live, pending: pending, pendingVersion: version),
+                                   .localization(live: nil, pending: nil, pendingVersion: nil),
+                                   .metadataVersion(version), .metadataVersion(nil)]
+        #expect(try roundTrip(states) == states)
     }
 
     @Test func cellStateWithDecimalPricesRoundTrips() throws {

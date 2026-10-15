@@ -36,6 +36,10 @@ struct PlanPresentation: Identifiable {
     var opCounts: [(op: ItemOp, count: Int)]
     var nearestDate: CalendarDate?
     var snapshotTakenAt: Date?
+    /// L3: names of the owners whose new version waits for submission in App Store Connect.
+    var readyForReview: [String] = []
+    /// L3: names of the owners whose new version exists but not all of whose texts were written.
+    var incompleteVersions: [String] = []
     var id: String { plan.id }
 }
 
@@ -101,8 +105,9 @@ final class PlanningModel {
     var iaps: [IAPInfo] { (snapshot?.iaps.values).map { $0.sorted { $0.name < $1.name } } ?? [] }
     var promoOffers: [PromoOffer] { snapshot?.promoOffers.sorted { ($0.subscriptionId, $0.offerCode) < ($1.subscriptionId, $1.offerCode) } ?? [] }
 
+    /// The product's name; a subscription group's reference name (text findings); else the asc id.
     func productName(_ ascId: String) -> String {
-        snapshot?.subscriptions[ascId]?.name ?? snapshot?.iaps[ascId]?.name ?? ascId
+        snapshot?.subscriptions[ascId]?.name ?? snapshot?.iaps[ascId]?.name ?? snapshot?.groups[ascId]?.referenceName ?? ascId
     }
 
     /// Reloads snapshot, plans and open findings off the main actor (the snapshot decodes every live observation and
@@ -262,15 +267,27 @@ final class PlanningModel {
 
     /// Plans `spec` against the latest snapshot, stores it as a Draft and opens it.
     func build(_ spec: PlanSpec, reason: String?) async -> Bool {
-        guard let draft = await draft(spec) else { return false }
+        guard let saved = await planAndStore(spec, reason: reason) else { return false }
+        await open(planId: saved.id, draft: saved.draft)
+        return true
+    }
+
+    /// Plans `spec` and stores it as a Draft without opening it, so the window stays on its screen: a clone's drafts are
+    /// built while the Clone sheet is shown, and opening one would switch to Plans and close the sheet. Returns the
+    /// Draft's id, or nil with `errorMessage` set.
+    func buildWithoutOpening(_ spec: PlanSpec, reason: String?) async -> String? {
+        await planAndStore(spec, reason: reason)?.id
+    }
+
+    private func planAndStore(_ spec: PlanSpec, reason: String?) async -> (id: String, draft: PlanDraft)? {
+        guard let draft = await draft(spec) else { return nil }
         do {
             let id = try deps.persistence.saveDraft(draft, binding: PlanBinding(config: config), reason: reason, replanOf: nil)
             await reloadPlans()
-            await open(planId: id, draft: draft)
-            return true
+            return (id, draft)
         } catch {
             errorMessage = "The plan cannot be saved: \(error)"
-            return false
+            return nil
         }
     }
 
@@ -346,7 +363,8 @@ final class PlanningModel {
                                          config: WorkspaceConfig, today: CalendarDate) throws -> PlanPresentation? {
         guard let plan = try store.plan(id: planId) else { return nil }
         let spec = try JSONCoding.decode(PlanSpec.self, from: plan.specJSON)
-        let items = try store.items(planId: planId).map(\.item)
+        let stored = try store.items(planId: planId)
+        let items = stored.map(\.item)
         PlanOpenTrace.mark("plan and \(items.count) items read")
         var isImport = false
         if case .importTable = spec.unwrapped { isImport = true }
@@ -362,8 +380,11 @@ final class PlanningModel {
             default: return nil
             }
         }
+        let versions = ReadyForReview.status(plan: plan, items: stored, metadata: snapshot.metadata)
         return PlanPresentation(plan: plan, spec: spec, rows: rows, checkDiffs: checkDiffs, opCounts: counts,
-                                nearestDate: dates.min(), snapshotTakenAt: snapshot.takenAt)
+                                nearestDate: dates.min(), snapshotTakenAt: snapshot.takenAt,
+                                readyForReview: versions.ready.map { snapshot.ownerName($0) },
+                                incompleteVersions: versions.incomplete.map { snapshot.ownerName($0) })
     }
 
     /// Builds a draft off the main actor. The context carries the rate limit (A7, estimate), the stored items of a

@@ -43,6 +43,7 @@ struct PlanBuilder {
         case let .promo(s): addPromo(s)
         case let .iap(s): addIAP(s)
         case let .withdraw(s): try addWithdraw(s)
+        case let .localization(s): addLocalization(s)
         case let .fix(_, underlying): try collect(underlying)
         }
     }

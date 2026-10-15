@@ -128,6 +128,23 @@ public struct WithdrawPlanSpec: Hashable, Sendable, Codable {
     public init(planId: String, itemSeqs: [Int]) { self.planId = planId; self.itemSeqs = itemSeqs }
 }
 
+/// One row of desired texts. nil or empty field = keep the current text (L-D3).
+public struct LocalizationEdit: Hashable, Sendable, Codable {
+    public var owner: LocalizationOwner
+    public var locale: String
+    public var name: String?
+    public var description: String?
+    public var customAppName: String?
+    public init(owner: LocalizationOwner, locale: String, name: String? = nil, description: String? = nil, customAppName: String? = nil) {
+        self.owner = owner; self.locale = locale; self.name = name; self.description = description; self.customAppName = customAppName
+    }
+}
+
+public struct LocalizationPlanSpec: Hashable, Sendable, Codable {
+    public var edits: [LocalizationEdit]
+    public init(edits: [LocalizationEdit]) { self.edits = edits }
+}
+
 public indirect enum PlanSpec: Hashable, Sendable, Codable {
     case importTable(ImportPlanSpec)
     case regular(RegularPlanSpec)
@@ -136,6 +153,7 @@ public indirect enum PlanSpec: Hashable, Sendable, Codable {
     case iap(IAPPlanSpec)
     case fix(findingIds: [Int64], underlying: PlanSpec)
     case withdraw(WithdrawPlanSpec)
+    case localization(LocalizationPlanSpec)
 
     public var origin: PlanOrigin {
         switch self {
@@ -146,6 +164,7 @@ public indirect enum PlanSpec: Hashable, Sendable, Codable {
         case .iap: return .iap
         case .fix: return .fix
         case .withdraw: return .withdraw
+        case .localization: return .localization
         }
     }
 

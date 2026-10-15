@@ -92,7 +92,11 @@ public enum BridgeSocket {
 
 /// The helper's side: one connection per tool call.
 public enum BridgeClient {
-    public static func call(_ request: BridgeRequest, socketPath: String, timeout: TimeInterval = 180) throws -> ToolResult {
+    /// How long the helper waits for the app's answer to one call (seconds). A tool that can take longer answers before it
+    /// runs out and lets the work finish in the app.
+    public static let callTimeout: TimeInterval = 180
+
+    public static func call(_ request: BridgeRequest, socketPath: String, timeout: TimeInterval = BridgeClient.callTimeout) throws -> ToolResult {
         var address = try BridgeSocket.address(socketPath)
         let descriptor = try BridgeSocket.open()
         defer { close(descriptor) }

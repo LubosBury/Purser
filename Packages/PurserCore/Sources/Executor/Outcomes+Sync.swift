@@ -24,7 +24,7 @@ extension ItemEffectiveness {
             return !snapshot.introRows.contains { $0.ascId == id }
         case let .deletePromo(id):
             return !snapshot.promoOffers.contains { $0.ascId == id }
-        case .createPromo, .replacePromoPrices, .replaceIAPSchedule:
+        case .createPromo, .replacePromoPrices, .replaceIAPSchedule, .setLocalization, .createMetadataVersion:
             return stored.verifiedAt != nil
         }
     }
@@ -48,6 +48,12 @@ extension ItemEffectiveness {
             return Reconciler.reached(stored.item, live: .promo(offer), today: today)
         case let .replaceIAPSchedule(s):
             return Reconciler.reached(stored.item, live: .iapSchedule(snapshot.iapSchedules[s.iapId]), today: today)
+        case .setLocalization:
+            return Reconciler.reached(stored.item, live: snapshot.cellState(stored.item.cell, on: today), today: today)
+        case let .createMetadataVersion(owner):
+            // A version never disappears (no DELETE in the API); an owner the snapshot did not read counts as present.
+            guard let id = stored.ascId else { return false }
+            return snapshot.metadata[owner].map { $0.versions.contains { $0.ascId == id } } ?? true
         case .deleteRegularPrice, .deleteIntro, .deletePromo:
             return true
         }

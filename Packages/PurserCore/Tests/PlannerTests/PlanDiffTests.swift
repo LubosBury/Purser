@@ -8,6 +8,24 @@ import Policy
 import PurserTestSupport
 
 @Suite struct PlanDiffTests {
+    @Test func textCellsDescribeLocaleTextsAndVersion() {
+        let owner = LocalizationOwner.subscription("s")
+        let live = LocalizationRow(ascId: "loc-1", owner: owner, versionId: "ver-1", locale: "en-US",
+                                   text: LocalizationText(name: "Yearly", description: "Every fruit"))
+        let pending = LocalizationRow(ascId: "loc-2", owner: owner, versionId: "ver-2", locale: "en-US",
+                                      text: LocalizationText(name: "Yearly Plus", description: "Every fruit, all year"))
+        let version = MetadataVersion(ascId: "ver-2", owner: owner, number: 2, state: .prepareForSubmission)
+        #expect(PlanDiff.describe(.localization(live: live, pending: nil, pendingVersion: nil)) == "en-US: Yearly — Every fruit")
+        #expect(PlanDiff.describe(.localization(live: live, pending: pending, pendingVersion: version))
+                == "en-US: Yearly — Every fruit → en-US: Yearly Plus — Every fruit, all year (version 2, PREPARE_FOR_SUBMISSION)")
+        #expect(PlanDiff.describe(.localization(live: nil, pending: nil, pendingVersion: nil)) == "—")
+        let group = LocalizationRow(ascId: "loc-3", owner: .group("g"), versionId: "ver-3", locale: "cs",
+                                    text: LocalizationText(name: "Prémium", customAppName: "Ovoce"))
+        #expect(PlanDiff.describe(.localization(live: group, pending: nil, pendingVersion: nil)) == "cs: Prémium — Ovoce")
+        #expect(PlanDiff.describe(.metadataVersion(version)) == "version 2, PREPARE_FOR_SUBMISSION")
+        #expect(PlanDiff.describe(.metadataVersion(nil)) == "—")
+    }
+
     @Test func introRowsShowPriceDiscountAndShareOfRegular() throws {
         let snapshot = yearly(.approved).snapshot()
         let spec = introSpec(.percentOfRegular(d("0.8")), start: today.adding(days: 7), territories: ["USA", "DEU"])

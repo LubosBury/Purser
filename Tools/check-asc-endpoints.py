@@ -21,20 +21,32 @@ PATHS_DOC = ROOT / "docs" / "research" / "asc-api-paths.md"
 CACHE = ROOT / "Tools" / ".cache"
 ZIP_PATH = CACHE / "app-store-connect-openapi-specification.zip"
 
-# Attributes LiveASCClient reads (Sources/ASCClient/LiveASCClient+Reading.swift). Schema name -> attribute names.
+# Attributes LiveASCClient reads (Sources/ASCClient/LiveASCClient+Reading.swift, LiveASCClient+Metadata.swift,
+# LiveASCClient+ProductAssets.swift).
+# Schema name -> attribute names.
 ATTRIBUTES = {
     "App": ["bundleId", "name"],
     "Territory": ["currency"],
     "SubscriptionGroup": ["referenceName"],
-    "Subscription": ["name", "productId", "state", "subscriptionPeriod"],
+    "Subscription": ["name", "productId", "state", "subscriptionPeriod", "familySharable", "reviewNote", "groupLevel"],
     "SubscriptionPlanAvailability": ["planType"],
     "SubscriptionPrice": ["startDate", "preserved", "planType"],
     "SubscriptionPricePoint": ["customerPrice", "proceeds"],
     "SubscriptionIntroductoryOffer": ["startDate", "endDate", "duration", "offerMode", "numberOfPeriods", "targetSubscriptionPlanType"],
     "SubscriptionPromotionalOffer": ["duration", "name", "numberOfPeriods", "offerCode", "offerMode", "targetSubscriptionPlanType"],
-    "InAppPurchaseV2": ["name", "productId", "inAppPurchaseType", "state"],
+    "InAppPurchaseV2": ["name", "productId", "inAppPurchaseType", "state", "familySharable", "reviewNote"],
     "InAppPurchasePrice": ["startDate", "endDate", "manual"],
     "InAppPurchasePricePoint": ["customerPrice", "proceeds"],
+    "SubscriptionAvailability": ["availableInNewTerritories"],
+    "InAppPurchaseAvailability": ["availableInNewTerritories"],
+    "SubscriptionAppStoreReviewScreenshot": ["fileName", "fileSize", "imageAsset", "assetDeliveryState", "uploadOperations"],
+    "InAppPurchaseAppStoreReviewScreenshot": ["fileName", "fileSize", "imageAsset", "assetDeliveryState", "uploadOperations"],
+    "SubscriptionVersion": ["version", "state"],
+    "InAppPurchaseVersion": ["version", "state"],
+    "SubscriptionGroupVersion": ["version", "state"],
+    "SubscriptionLocalizationV2": ["name", "locale", "description"],
+    "InAppPurchaseLocalizationV2": ["name", "locale", "description"],
+    "SubscriptionGroupLocalizationV2": ["name", "locale", "customAppName"],
 }
 
 ENDPOINT_PATTERN = re.compile(r"`(GET|POST|PATCH|DELETE) (/v[0-9]+/[^`\s]+)`")

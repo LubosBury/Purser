@@ -28,6 +28,7 @@ public enum MCPToolName: String, CaseIterable, Sendable {
     case status = "purser_status"
     case listProducts = "list_products"
     case getPrices = "get_prices"
+    case getLocalizations = "get_localizations"
     case listFindings = "list_findings"
     case listPlans = "list_plans"
     case getPlan = "get_plan"
@@ -37,6 +38,7 @@ public enum MCPToolName: String, CaseIterable, Sendable {
     case createIAPPricePlan = "create_iap_price_plan"
     case createIntroOfferPlan = "create_intro_offer_plan"
     case createPromoOfferPlan = "create_promo_offer_plan"
+    case createLocalizationPlan = "create_localization_plan"
     case getImportFormat = "get_import_format"
     case exportImportTemplate = "export_import_template"
     case createImportPlan = "create_import_plan"
@@ -52,6 +54,8 @@ public enum MCPToolName: String, CaseIterable, Sendable {
     case abortPlan = "abort_plan"
     case previewProducts = "preview_new_products"
     case createProducts = "create_products"
+    case previewClone = "preview_clone"
+    case cloneProducts = "clone_products"
 }
 
 public enum ToolCatalog {
@@ -121,6 +125,10 @@ public enum ToolCatalog {
             return tool("Current and scheduled prices of one product per territory, with intro offers and promotional offers of a subscription.",
                         schema(["product": string("ASC id or Product ID of a subscription or in-app purchase."),
                                 "territories": territoryList], required: ["product"]), .read)
+        case .getLocalizations:
+            return tool("Localized texts from the last sync: name and description of subscriptions and in-app purchases, name and custom app name of subscription groups, per locale. Each owner shows its live version and its pending version (being prepared or in review) with the state. Read only.",
+                        schema(["products": strings("Product IDs or ASC ids of subscriptions and in-app purchases, or group:<reference name> of a subscription group. Omit or leave empty for every product and group."),
+                                "locales": strings("Only these locales, e.g. [\"en-US\", \"cs\"]. Omit for every locale.")]), .read)
         case .listFindings:
             return tool("Open findings: changes made outside Purser, broken schedules and invariant violations.", schema(), .read)
         case .listPlans:
@@ -184,6 +192,21 @@ public enum ToolCatalog {
             properties.merge(pricingProperties) { _, new in new }
             return tool("Builds a Draft plan that creates, re-prices or deletes a promotional offer. Nothing is written until apply_plan.",
                         schema(properties, required: ["action"]), .local)
+        case .createLocalizationPlan:
+            let row: JSONValue = [
+                "type": "object",
+                "properties": [
+                    "product": ["type": "string", "description": "Product ID or ASC id of a subscription or in-app purchase, or group:<reference name> for a subscription group."],
+                    "locale": ["type": "string", "description": "App Store locale code, e.g. en-US, cs, de-DE."],
+                    "name": ["type": "string", "description": "Display name. Empty or omitted keeps the current one; a new locale needs it."],
+                    "description": ["type": "string", "description": "Subscription and in-app purchase only. Empty or omitted keeps the current one."],
+                    "custom_app_name": ["type": "string", "description": "Subscription group only: the custom app name. Empty or omitted keeps the current one."],
+                ],
+                "required": ["product", "locale"], "additionalProperties": false,
+            ]
+            return tool("Builds a Draft plan that changes localized names and descriptions of subscriptions and in-app purchases and the name and custom app name of subscription groups. Purser writes into a version that is still in preparation; for an approved product or group without one, the plan first creates a new version (rule N5, confirmation C1), which cannot be deleted through the API and which the owner submits in App Store Connect. An empty or omitted field keeps the current text and no locale is ever removed. A row Purser cannot place refuses the whole call. Nothing is written until apply_plan.",
+                        schema(["rows": ["type": "array", "items": row, "description": "One entry per product or group and locale."],
+                                "reason": string("Note stored with the plan.")], required: ["rows"]), .local)
         case .getImportFormat:
             return tool("The layout create_import_plan expects: the first data row, the country and currency columns and what each price column writes (product, kind of price, check-only or not).", schema(), .read)
         case .exportImportTemplate:
@@ -245,6 +268,26 @@ public enum ToolCatalog {
                 return tool("Lists the steps create_products would take for these products, after reading what the app already has. Writes nothing.", products, .local)
             }
             return tool("WRITES TO APP STORE CONNECT: creates the subscription group, subscriptions and non-consumables that do not exist yet. A Product ID can never be used again, even after deletion. New products still need metadata and App Review in App Store Connect.", products, .ascWrite)
+        case .previewClone, .cloneProducts:
+            let clone = schema([
+                "products": ["type": "array", "description": "The products to clone: subscriptions and in-app purchases.",
+                             "items": ["type": "object",
+                                       "properties": ["source": ["type": "string", "description": "ASC id or Product ID of the product to clone."],
+                                                      "product_id": ["type": "string", "description": "Product ID of the clone. Default: the source's Product ID followed by the suffix."],
+                                                      "name": ["type": "string", "description": "Reference name of the clone. Default: the source's name followed by the suffix."]],
+                                       "required": ["source"], "additionalProperties": false]],
+                "suffix": string("Appended to the source's Product ID and name (unless product_id and name are given) and to the codes of copied promotional offers, e.g. _AB3."),
+                "group": ["description": "\"source\" keeps every subscription clone in its source's group (default); {\"new\": \"<name>\"} puts them into a new group that gets the texts of the source group.",
+                          "oneOf": [["type": "string", "enum": ["source"]],
+                                    ["type": "object", "properties": ["new": ["type": "string"]], "required": ["new"], "additionalProperties": false]]],
+                "level": choice(["source", "end"], "Level of a subscription clone in its group: the source's level (default, variants of an A/B test) or a new level at the end."),
+                "copy": ["type": "array", "items": ["type": "string", "enum": ["localizations", "review_screenshot", "prices", "intro_offers", "promo_offers"]],
+                         "description": "What to copy besides the product, its attributes and availability; omit for everything. Prices and offers become Draft plans."],
+            ], required: ["products", "suffix"])
+            if name == .previewClone {
+                return tool("Lists the steps clone_products would take for these products, after reading what the app already has in App Store Connect, and under blocked the steps it cannot take now, with what the owner has to do first. Writes nothing. While a clone or a product creation runs in Purser, it says so instead of listing steps; wait until it no longer does.", clone, .local)
+            }
+            return tool("WRITES TO APP STORE CONNECT: clones subscriptions and in-app purchases for an A/B test: each clone gets its source's attributes, availability, texts and review screenshot. A Product ID can never be used again, even after deletion. Then Purser syncs and builds Draft plans with the source's prices and offers; apply them in the listed order, the regular prices first. Running it again finishes what is missing.", clone, .ascWrite)
         }
     }
 }

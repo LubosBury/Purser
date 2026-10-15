@@ -100,6 +100,55 @@ public enum MCPRender {
                 "note": "Apple equalizes every territory without a manual price from the base territory; those prices are not listed here."]
     }
 
+    // MARK: Localizations
+
+    /// get_localizations: per owner the live and the pending version and the texts of each locale. `product` is the
+    /// reference the localization tools take (Product ID, or group:<reference name>).
+    public static func localizations(_ owners: [LocalizationOwner], snapshot: CatalogSnapshot, locales: Set<String>?) -> JSONValue {
+        let entries = owners.map { owner -> JSONValue in
+            let section = CatalogLocalizations.of(owner, snapshot: snapshot)
+            let rows = section.rows.filter { locales?.contains($0.locale) ?? true }.map { row -> JSONValue in
+                var entry: [String: JSONValue] = ["locale": .string(row.locale), "live": text(row.live, owner: owner)]
+                if section.pendingVersion != nil {
+                    entry["pending"] = text(row.pending, owner: owner)
+                    entry["change"] = .string(row.change.rawValue)
+                }
+                return .object(entry)
+            }
+            return ["kind": .string(kindName(owner.kind)), "asc_id": .string(owner.ascId), "name": .string(snapshot.ownerName(owner)),
+                    "product": .string(reference(owner, snapshot: snapshot)),
+                    "live_version": version(section.liveVersion), "pending_version": version(section.pendingVersion),
+                    "localizations": .array(rows)]
+        }
+        return ["catalog_read_at": timestamp(snapshot.takenAt), "owners": .array(entries),
+                "note": "Texts from the last sync. A pending version is being prepared or is in review; customers see the live texts until Apple approves it. A product has name and description, a subscription group name and custom_app_name."]
+    }
+
+    private static func kindName(_ kind: LocalizationOwnerKind) -> String {
+        switch kind {
+        case .subscription: return "subscription"
+        case .iap: return "in_app_purchase"
+        case .group: return "subscription_group"
+        }
+    }
+
+    /// The name `create_localization_plan` and `get_localizations` take back: `LocalizationTemplate.reference`.
+    private static func reference(_ owner: LocalizationOwner, snapshot: CatalogSnapshot) -> String {
+        LocalizationTemplate.reference(owner, snapshot: snapshot)
+            ?? (owner.kind == .group ? LocalizationTemplate.groupPrefix + owner.ascId : owner.ascId)
+    }
+
+    private static func version(_ version: MetadataVersion?) -> JSONValue {
+        guard let version else { return .null }
+        return ["asc_id": .string(version.ascId), "number": number(version.number), "state": .string(version.state.rawValue)]
+    }
+
+    private static func text(_ text: LocalizationText?, owner: LocalizationOwner) -> JSONValue {
+        guard let text else { return .null }
+        if owner.kind == .group { return ["name": .string(text.name), "custom_app_name": optional(text.customAppName)] }
+        return ["name": .string(text.name), "description": optional(text.description)]
+    }
+
     // MARK: Import
 
     public static func targetKind(_ kind: TargetKind) -> String {
@@ -154,6 +203,17 @@ public enum MCPRender {
 
     // MARK: Plans
 
+    /// A localized text as {name, description, custom_app_name}; null when there is none.
+    public static func localizationText(_ text: LocalizationText?) -> JSONValue {
+        guard let text else { return .null }
+        return ["name": .string(text.name), "description": optional(text.description), "custom_app_name": optional(text.customAppName)]
+    }
+
+    /// A text field as the tool arguments and `after_text` spell it (name, description, custom_app_name).
+    private static func fieldName(_ field: LocalizationField) -> String {
+        field == .customAppName ? "custom_app_name" : field.rawValue
+    }
+
     public static func planSummary(_ plan: StoredPlan) -> JSONValue {
         ["plan_id": .string(plan.id), "origin": .string(plan.origin.rawValue), "state": .string(plan.state.rawValue),
          "pause_reason": optional(plan.pauseReason?.rawValue), "end_reason": optional(plan.endReason?.rawValue),
@@ -195,7 +255,8 @@ public enum MCPRender {
     }
 
     public static func plan(_ plan: StoredPlan, items: [StoredItem], rows: [PlanDiffRow], appName: String,
-                            productName: (String) -> String, flaggedOnly: Bool, maxRows: Int) -> JSONValue {
+                            productName: (String) -> String, flaggedOnly: Bool, maxRows: Int,
+                            readyForReview: JSONValue? = nil, incompleteVersions: JSONValue? = nil) -> JSONValue {
         let states = Dictionary(items.map { ($0.item.seq, $0) }, uniquingKeysWith: { first, _ in first })
         let shown = rows.filter { !flaggedOnly || $0.isMarked }
         let rendered = shown.prefix(max(0, maxRows)).map { row -> JSONValue in
@@ -206,6 +267,12 @@ public enum MCPRender {
                 "state": optional(states[row.seq]?.state.rawValue),
             ]
             if let delta = row.deltaPercent { entry["delta_percent"] = number(delta) }
+            if let locale = row.locale {
+                entry["locale"] = .string(locale)
+                entry["before_text"] = localizationText(row.beforeText)
+                entry["after_text"] = localizationText(row.afterText)
+                entry["changed_fields"] = .array(PlanDiff.changedFields(row.beforeText, row.afterText).map { .string(fieldName($0)) })
+            }
             if let imported = row.importedValue { entry["imported"] = number(imported) }
             if !row.flags.isEmpty { entry["flags"] = .array(row.flags.map { .string($0.rawValue) }) }
             if !row.verdicts.isEmpty { entry["verdicts"] = .array(row.verdicts.map(verdict)) }
@@ -226,6 +293,8 @@ public enum MCPRender {
         result["rows_total"] = number(rows.count)
         result["rows_matching"] = number(shown.count)
         result["rows"] = .array(Array(rendered))
+        if let readyForReview { result["ready_for_review"] = readyForReview }
+        if let incompleteVersions { result["incomplete_versions"] = incompleteVersions }
         return .object(result)
     }
 }

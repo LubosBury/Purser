@@ -21,6 +21,10 @@ public struct PlanDiffRow: Hashable, Sendable, Identifiable {
     public var date: CalendarDate?
     public var flags: [ItemFlag]
     public var verdicts: [Verdict]
+    /// Text cells (L10N): the locale and the effective texts before and after; nil for price cells.
+    public var locale: String? = nil
+    public var beforeText: LocalizationText? = nil
+    public var afterText: LocalizationText? = nil
 
     public var id: Int { seq }
     /// Shown by the "flagged only" filter: rows with a flag or a verdict on their cell.
@@ -67,6 +71,12 @@ public enum PlanDiff {
                 }
             case let .endIntro(_, end):
                 row.date = end
+            case let .setLocalization(text):
+                row.locale = text.locale
+                row.beforeText = LocalizationSemantics.effectiveText(item.before)
+                row.afterText = LocalizationSemantics.effectiveText(item.target)
+                row.before = describe(locale: text.locale, row.beforeText)
+                row.after = describe(locale: text.locale, row.afterText)
             default:
                 break
             }
@@ -91,7 +101,28 @@ public enum PlanDiff {
         case let .iapSchedule(schedule):
             guard let schedule else { return "—" }
             return "base \(schedule.baseTerritory), \(schedule.manualPrices.count) manual prices"
+        case let .localization(live, pending, version):
+            var text = live.map(describe) ?? "—"
+            if let pending {
+                text += " → \(describe(pending))"
+                if let version { text += " (version \(version.number), \(version.state))" }
+            }
+            return text
+        case let .metadataVersion(version):
+            guard let version else { return "—" }
+            return "version \(version.number), \(version.state)"
         }
+    }
+
+    /// "en-US: Name — description" for an effective text; a group shows its custom app name; "—" without a text.
+    static func describe(locale: String, _ text: LocalizationText?) -> String {
+        guard let text else { return "—" }
+        return "\(locale): \(text.name) — \(text.description ?? text.customAppName ?? "—")"
+    }
+
+    /// "<locale>: <name> — <description>"; a group shows its custom app name in the second slot.
+    static func describe(_ row: LocalizationRow) -> String {
+        describe(locale: row.locale, row.text)
     }
 
     static func describe(_ row: IntroOfferRow) -> String {
@@ -140,5 +171,30 @@ extension PlannedItem {
 
     var beforeIntroRow: IntroOfferRow? {
         if case let .intro(current, future) = before { return current ?? future } else { return nil }
+    }
+}
+
+/// A field of a localized text, for the plan screen and MCP.
+public enum LocalizationField: String, CaseIterable, Sendable {
+    case name, description, customAppName
+
+    public var label: String {
+        switch self {
+        case .name: return "Name"
+        case .description: return "Description"
+        case .customAppName: return "Custom app name"
+        }
+    }
+}
+
+extension PlanDiff {
+    /// Fields whose text differs; with no text before, every field the after text sets. A nil after-field keeps the text.
+    public static func changedFields(_ before: LocalizationText?, _ after: LocalizationText?) -> [LocalizationField] {
+        guard let after else { return [] }
+        var fields: [LocalizationField] = []
+        if before?.name != after.name { fields.append(.name) }
+        if after.description != nil, before?.description != after.description { fields.append(.description) }
+        if after.customAppName != nil, before?.customAppName != after.customAppName { fields.append(.customAppName) }
+        return fields
     }
 }

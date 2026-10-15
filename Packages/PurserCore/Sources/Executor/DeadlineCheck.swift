@@ -28,6 +28,9 @@ package enum DeadlineCheck {
                     return "R6: the scheduled change starts in \(Int(hoursLeft)) h, less than \(AppleConstants.replaceCutoffHours) h"
                 }
             }
+        case .setLocalization:
+            // A text has no date, so no lead time applies.
+            break
         default:
             break
         }

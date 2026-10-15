@@ -66,6 +66,46 @@ import PurserTestSupport
         #expect(snapshot.cellState(.iapSchedule(iapId: "6600000001"), on: day) == .iapSchedule(snapshot.iapSchedules["6600000001"]))
     }
 
+    @Test func ownersVersionsAndTextCells() {
+        var catalog = SyntheticCatalog()
+        catalog.addSubscription("s", prices: ["USA": SyntheticCatalog.d("29.99")])
+        catalog.addIAP("life", base: "USA", manual: ["USA": SyntheticCatalog.d("49.99")])
+        catalog.addGroup()
+        let owner = LocalizationOwner.subscription("s")
+        catalog.addTexts(owner, live: ["en-US": LocalizationText(name: "Yearly", description: "Every fruit"), "cs": LocalizationText(name: "Ročně")],
+                         pending: ["en-US": LocalizationText(name: "Yearly Plus", description: "Every fruit"), "de-DE": LocalizationText(name: "Jährlich")],
+                         pendingState: .prepareForSubmission)
+        catalog.addTexts(.group("group-1"), live: ["en-US": LocalizationText(name: "Premium", customAppName: "Fruit")])
+        let snapshot = catalog.snapshot()
+
+        #expect(snapshot.owners() == [.group("group-1"), .iap("life"), .subscription("s")])
+        #expect(snapshot.ownerName(.group("group-1")) == "Synthetic group")
+        #expect(snapshot.ownerName(owner) == "Synthetic s")
+        #expect(snapshot.ownerName(.iap("life")) == "Synthetic life")
+        #expect(snapshot.ownerName(.group("group-9")) == "group-9")
+        #expect(snapshot.liveVersion(of: owner)?.ascId == "ver-s-1")
+        #expect(snapshot.pendingVersion(of: owner)?.ascId == "ver-s-2")
+        #expect(snapshot.liveVersion(of: .iap("life")) == nil)
+        #expect(snapshot.locales(of: owner) == ["cs", "de-DE", "en-US"])
+        #expect(snapshot.locales(of: .iap("life")).isEmpty)
+        #expect(snapshot.localization(owner, locale: "cs", versionId: "ver-s-1")?.text.name == "Ročně")
+        #expect(snapshot.localization(owner, locale: "cs", versionId: "ver-s-2") == nil)
+
+        #expect(snapshot.cellState(.localization(owner: owner, locale: "en-US"), on: day)
+                == .localization(live: snapshot.localization(owner, locale: "en-US", versionId: "ver-s-1"),
+                                 pending: snapshot.localization(owner, locale: "en-US", versionId: "ver-s-2"),
+                                 pendingVersion: snapshot.pendingVersion(of: owner)))
+        guard case let .localization(live, pending, _) = snapshot.cellState(.localization(owner: owner, locale: "de-DE"), on: day) else {
+            Issue.record("wrong case"); return
+        }
+        #expect(live == nil)
+        #expect(pending?.text.name == "Jährlich")
+        #expect(snapshot.cellState(.metadataVersion(owner: owner), on: day) == .metadataVersion(snapshot.pendingVersion(of: owner)))
+        #expect(snapshot.cellState(.metadataVersion(owner: .group("group-1")), on: day) == .metadataVersion(nil))
+        #expect(snapshot.cellState(.localization(owner: .iap("life"), locale: "en-US"), on: day)
+                == .localization(live: nil, pending: nil, pendingVersion: nil))
+    }
+
     @Test func promoOffersAreSortedByCode() {
         #expect(makeSnapshot().promoOffers(subscriptionId: "6500000001").map(\.offerCode) == ["A_v1", "B_v1"])
         #expect(makeSnapshot().promoOffers(subscriptionId: "6500000009").isEmpty)

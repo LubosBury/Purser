@@ -10,12 +10,19 @@ public struct SubscriptionInfo: Hashable, Sendable, Codable {
     public var groupName: String
     public var availableTerritories: Set<TerritoryCode>
     public var monthlyPlanAvailable: Bool
+    /// Copied by a clone. nil in a catalog stored before cloning existed (decoded with decodeIfPresent, as every
+    /// Optional of a synthesized Codable) or when ASC leaves the attribute out.
+    public var familySharable: Bool?
+    public var reviewNote: String?
+    public var groupLevel: Int?
 
     public init(ascId: String, productId: String, name: String, period: SubscriptionPeriod, state: ProductState,
-                groupId: String, groupName: String, availableTerritories: Set<TerritoryCode>, monthlyPlanAvailable: Bool) {
+                groupId: String, groupName: String, availableTerritories: Set<TerritoryCode>, monthlyPlanAvailable: Bool,
+                familySharable: Bool? = nil, reviewNote: String? = nil, groupLevel: Int? = nil) {
         self.ascId = ascId; self.productId = productId; self.name = name; self.period = period; self.state = state
         self.groupId = groupId; self.groupName = groupName
         self.availableTerritories = availableTerritories; self.monthlyPlanAvailable = monthlyPlanAvailable
+        self.familySharable = familySharable; self.reviewNote = reviewNote; self.groupLevel = groupLevel
     }
 }
 
@@ -25,9 +32,14 @@ public struct IAPInfo: Hashable, Sendable, Codable {
     public var name: String
     public var iapType: String
     public var state: ProductState
+    /// Copied by a clone; nil in a catalog stored before cloning existed.
+    public var familySharable: Bool?
+    public var reviewNote: String?
 
-    public init(ascId: String, productId: String, name: String, iapType: String, state: ProductState) {
+    public init(ascId: String, productId: String, name: String, iapType: String, state: ProductState,
+                familySharable: Bool? = nil, reviewNote: String? = nil) {
         self.ascId = ascId; self.productId = productId; self.name = name; self.iapType = iapType; self.state = state
+        self.familySharable = familySharable; self.reviewNote = reviewNote
     }
 }
 

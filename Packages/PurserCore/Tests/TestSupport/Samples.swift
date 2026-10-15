@@ -52,6 +52,17 @@ public enum Sample {
                    })
     }
 
+    public static func version(_ ascId: String, owner: LocalizationOwner = .subscription("6500000001"), number: Int,
+                               state: MetadataVersionState) -> MetadataVersion {
+        MetadataVersion(ascId: ascId, owner: owner, number: number, state: state)
+    }
+
+    public static func text(_ ascId: String, owner: LocalizationOwner = .subscription("6500000001"), version: String, locale: String = "en-US",
+                            name: String, description: String? = nil, customAppName: String? = nil) -> LocalizationRow {
+        LocalizationRow(ascId: ascId, owner: owner, versionId: version, locale: locale,
+                        text: LocalizationText(name: name, description: description, customAppName: customAppName))
+    }
+
     public static func schedule(iapId: String = "6600000001", base: TerritoryCode = "USA", prices: [(TerritoryCode, String)]) -> IAPSchedule {
         IAPSchedule(iapId: iapId, scheduleId: iapId, baseTerritory: base,
                     manualPrices: prices.map { territory, price in

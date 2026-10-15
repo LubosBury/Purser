@@ -52,7 +52,7 @@ struct WorkspaceShellView: View {
                 WorkspaceBanner(config: session.config)
                 Group {
                     switch screen {
-                    case .catalog: CatalogView(session: session, onNewPlan: startNewPlan)
+                    case .catalog: CatalogView(session: session, onNewPlan: startNewPlan, onEditTexts: editTexts)
                     case .findings: FindingsView(model: planning) { prefill in newPlan = NewPlanRequest(prefill: prefill) }
                     case .plans: PlanningRootView(model: planning, onNewPlan: startNewPlan)
                     case .history: HistoryView(session: session)
@@ -64,7 +64,7 @@ struct WorkspaceShellView: View {
             .background(PurserStage())
         }
         .sheet(item: $newPlan) { request in
-            NewPlanSheet(model: planning, prefill: request.prefill)
+            NewPlanSheet(model: planning, prefill: request.prefill, localizationOwner: request.localizationOwner, tab: request.tab)
         }
         // A built or opened plan (New plan sheet, History, showPlan) always lands on the Plans screen.
         .onChange(of: planning.shownPlanId) { _, id in
@@ -93,6 +93,10 @@ struct WorkspaceShellView: View {
 
     private func startNewPlan() {
         newPlan = NewPlanRequest(prefill: nil)
+    }
+
+    private func editTexts(_ owner: LocalizationOwner?) {
+        newPlan = NewPlanRequest(prefill: nil, tab: .localization, localizationOwner: owner)
     }
 
     // MARK: Sync status and workspace actions

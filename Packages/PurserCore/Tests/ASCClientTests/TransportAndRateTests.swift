@@ -25,6 +25,10 @@ import PurserTestSupport
         #expect(maybeSent == true)
     }
 
+    @Test func theSessionOfTheASCTransportKeepsNoURLCache() {
+        #expect(URLSessionTransport().configuration.urlCache == nil)
+    }
+
     @Test func parsesRateLimitHeader() {
         let at = Date(timeIntervalSince1970: 1_791_547_200)
         #expect(RateLimitSnapshot.parse("user-hour-lim:3500;user-hour-rem:500;", at: at) == RateLimitSnapshot(limit: 3500, remaining: 500, observedAt: at))

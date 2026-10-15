@@ -35,8 +35,9 @@ extension WorkspaceSession {
     // MARK: Apply, resume, pause, abort (K11)
 
     /// Apply with a write-capable client that exists only for this call (spec §4: write token only after Touch ID).
-    /// `gate` nil = Touch ID of this Mac. The only other gate is MCPWriteGate, for a call that came over the MCP
-    /// bridge while the owner allows writes without Touch ID in Settings.
+    /// `gate` nil = Touch ID of this Mac. The only gate that lets a write through without Touch ID is MCPWriteGate, for a
+    /// call that came over the MCP bridge while the owner allows writes without Touch ID in Settings; the only other gate,
+    /// RefusingGate (WorkspaceSession+CloneDrafts.swift), refuses every write (ArchitectureTests lists them all).
     func apply(planId: String, confirm: @escaping @Sendable (ConfirmationRequest) async -> ConfirmationResponse,
                gate: (any BiometricGate)? = nil,
                onEvent: @escaping @MainActor (ExecutorEvent) -> Void) async throws -> PlanState {
@@ -205,9 +206,12 @@ extension WorkspaceSession {
 
     // MARK: Product creation
 
-    /// A ProductCreator with its own write-capable client for one run of the "New products" sheet. The session never
-    /// stores it; the key is read from the Keychain now and the creator asks for Touch ID before it writes
-    /// (`gate` nil; see apply(planId:confirm:gate:onEvent:) for the one other gate).
+    /// A ProductCreator with its own write-capable client for one run of the "New products" or "Clone" sheet. The session
+    /// never stores it, but every creator shares `productRuns`: one creation or clone at a time, from a window or over MCP.
+    /// The key is read from the Keychain now and the creator asks for Touch ID before it writes
+    /// (`gate` nil; see apply(planId:confirm:gate:onEvent:) for the other gates: MCPWriteGate and the RefusingGate of the
+    /// clone drafts). Its AssetTransfer, the only code that talks to Apple's upload and image hosts, copies the review
+    /// screenshots of a clone.
     func makeProductCreator(gate: (any BiometricGate)? = nil) throws -> ProductCreator {
         guard activeExecutor == nil else { throw WorkspaceSessionError.applyInProgress }
         guard let readClient else { throw WorkspaceSessionError.syncUnavailable }
@@ -216,7 +220,8 @@ extension WorkspaceSession {
         let signer = try JWTSigner(keyId: config.keyId, identity: identity, privateKeyPEM: String(decoding: pem, as: UTF8.self))
         let http = ASCHTTPClient(transport: URLSessionTransport(), signer: signer, budget: budget, appGuard: appGuard,
                                  readOnly: false, now: { Date() })
-        return ProductCreator(config: config, http: http, reader: readClient, audit: audit, budget: budget, gate: gate ?? biometricGate)
+        return ProductCreator(config: config, http: http, reader: readClient, audit: audit, budget: budget, gate: gate ?? biometricGate,
+                              runs: productRuns, assets: AssetTransfer.live(audit: audit))
     }
 
     private static func writeTransport() -> any HTTPTransport {

@@ -143,7 +143,7 @@ extension CellKey {
         switch self {
         case let .regular(_, _, p), let .intro(_, _, p): return p
         case .promo: return .upfront
-        case .iapSchedule: return nil
+        case .iapSchedule, .localization, .metadataVersion: return nil
         }
     }
 }

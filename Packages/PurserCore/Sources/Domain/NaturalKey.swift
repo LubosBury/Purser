@@ -17,6 +17,10 @@ public enum NaturalKey {
         case let .deletePromo(id): return "P-|\(id)"
         case let .replaceIAPSchedule(s):
             return "L~|\(s.iapId)|\(hash([s.baseTerritory.rawValue] + s.manualPrices.map { "\($0.territory):\($0.pricePointId):\($0.startDate?.iso ?? "-"):\($0.endDate?.iso ?? "-")" }))"
+        case let .setLocalization(s):
+            return "T=|\(s.owner.key)|\(s.locale)|\(hash([s.text.name, s.text.description ?? "-", s.text.customAppName ?? "-"]))"
+        case let .createMetadataVersion(owner):
+            return "V+|\(owner.key)"
         }
     }
 

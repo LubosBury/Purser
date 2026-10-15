@@ -83,6 +83,8 @@ public actor ASCHTTPClient {
         // 4. A fresh token for every request (no cache): after a 401 the next request is signed again.
         var request = URLRequest(url: url)
         request.httpMethod = method
+        // Never an answer from a cache: every decision rests on what App Store Connect says now.
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         request.httpBody = body
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
@@ -103,15 +105,25 @@ public actor ASCHTTPClient {
         } catch {
             throw ASCError.network(description: String(describing: error), maybeSent: true)
         }
+        // A redirected answer (URLSession follows redirects) speaks for another resource: nothing in it is used, and the
+        // request may have reached Apple.
+        guard Self.isAnswer(response, to: url) else {
+            throw ASCError.network(description: "answer from another URL", maybeSent: true)
+        }
         if let header = response.value(forHTTPHeaderField: "X-Rate-Limit"),
            let snapshot = RateLimitSnapshot.parse(header, at: now()) {
             await budget.record(snapshot)
         }
         // 6. Every resource of a 2xx JSON:API body belongs to the workspace app: let the guard know its id.
-        if (200..<300).contains(response.statusCode), !data.isEmpty,
-           let document = try? JSONDecoder().decode(JSONAPIDocument.self, from: data) {
-            let ids = Set((document.data + document.included).map(\.id))
-            if !ids.isEmpty { await appGuard.allowChildren(ids) }
+        if (200..<300).contains(response.statusCode) {
+            let document = data.isEmpty ? nil : try? JSONDecoder().decode(JSONAPIDocument.self, from: data)
+            if let document {
+                let ids = Set((document.data + document.included).map(\.id))
+                if !ids.isEmpty { await appGuard.allowChildren(ids) }
+            }
+            // Screenshots: a reservation's own answer makes it changeable; its commit or DELETE (a 204 without a body) ends that.
+            await appGuard.learnAnswer(method: method, path: url.path,
+                                       resources: document?.data.map { (type: $0.type, id: $0.id) } ?? [])
         }
         // 8. Nothing is retried here: the Executor and the SyncEngine decide about retries and pauses.
         return (data, response)
@@ -128,6 +140,13 @@ public actor ASCHTTPClient {
             let first = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.errors.first
             throw ASCError.http(status: response.statusCode, code: first?.code, title: first?.title, detail: first?.detail)
         }
+    }
+
+    /// Whether `response` comes from the scheme, host and path of `url` (the query may differ).
+    static func isAnswer(_ response: HTTPURLResponse, to url: URL) -> Bool {
+        guard let answered = response.url else { return false }
+        return answered.scheme?.lowercased() == url.scheme?.lowercased() && answered.host?.lowercased() == url.host?.lowercased()
+            && answered.path == url.path
     }
 
     /// "a=1&b=x%2Cy" -> [a=1, b=x,y]; an empty string -> [].

@@ -82,6 +82,9 @@ public struct SyncEngine: Sendable {
                 try await reader.iapPricePoints(iapId: iap.ascId, territories: territories)
             })
         }
+        for owner in listing.metadataOwners where scope.includes(owner.ascId) {
+            await readMetadata(&run, owner: owner, context: context)
+        }
         for (product, failure) in await refreshPricePoints(pricePointJobs) {
             run.failures["\(product)|PRICE_POINTS"] = failure
         }
@@ -89,15 +92,22 @@ public struct SyncEngine: Sendable {
         let status: SyncStatus = run.failures.isEmpty ? .complete : .partial
         let requests = await requestCount() - requestsBefore
         try finish(run, status: status, requests: requests, error: nil)
-        return SyncResult(syncId: syncId, status: status, requestCount: requests, newFindings: run.newFindings)
+        return SyncResult(syncId: syncId, status: status, requestCount: requests, newFindings: run.newFindings,
+                          failedScopes: Set(run.failures.keys))
     }
 
     // MARK: - Listing (any failure here fails the whole sync before any observation is touched)
 
     private struct Listing {
+        var groups: [ASCSubscriptionGroup]
         var subscriptions: [SubscriptionInfo]
         var iaps: [IAPInfo]
         var territoryCodes: [TerritoryCode]
+
+        /// Every owner of localized texts: subscriptions, then IAPs, then groups.
+        var metadataOwners: [LocalizationOwner] {
+            subscriptions.map { .subscription($0.ascId) } + iaps.map { .iap($0.ascId) } + groups.map { .group($0.id) }
+        }
     }
 
     private func readListing(syncId: Int64, scope: SyncScope) async throws -> Listing {
@@ -118,12 +128,19 @@ public struct SyncEngine: Sendable {
             }
         }
         var subscriptions: [SubscriptionInfo] = []
-        for group in try await reader.subscriptionGroups(appId: config.appId) {
+        let groups = try await reader.subscriptionGroups(appId: config.appId)
+        for group in groups {
             subscriptions += try await reader.subscriptions(group: group)
         }
         let iaps = try await reader.inAppPurchases(appId: config.appId)
         let listed = subscriptions
         let codes = try await database.writer.write { db -> [TerritoryCode] in
+            for group in groups {
+                try db.execute(sql: """
+                    INSERT INTO subscription_group (asc_id, reference_name, first_sync, last_sync) VALUES (?, ?, ?, ?)
+                    ON CONFLICT(asc_id) DO UPDATE SET reference_name = excluded.reference_name, last_sync = excluded.last_sync
+                    """, arguments: [group.id, group.referenceName, syncId, syncId])
+            }
             for subscription in listed {
                 try upsertProduct(db, ascId: subscription.ascId, productId: subscription.productId, kind: .subscription,
                                   infoJSON: try JSONCoding.string(subscription), syncId: syncId)
@@ -133,7 +150,7 @@ public struct SyncEngine: Sendable {
             }
             return try String.fetchAll(db, sql: "SELECT code FROM territory ORDER BY code").map { TerritoryCode($0) }
         }
-        return Listing(subscriptions: listed, iaps: iaps, territoryCodes: codes)
+        return Listing(groups: groups, subscriptions: listed, iaps: iaps, territoryCodes: codes)
     }
 
     private func upsertProduct(_ db: Database, ascId: String, productId: String, kind: ProductKind, infoJSON: String, syncId: Int64) throws {
@@ -168,7 +185,7 @@ public struct SyncEngine: Sendable {
             let today = run.today
             let findings = try await database.writer.write { db in
                 try apply(observed, product: product, kind: kind, syncId: syncId, previousSync: context.previous[scope],
-                          items: context.items, today: today, in: db)
+                          items: context.items, today: today, currentVersionIds: [], in: db)
             }
             run.completeScopes.insert(scope)
             run.newFindings += findings
@@ -177,13 +194,46 @@ public struct SyncEngine: Sendable {
         }
     }
 
+    /// One owner's versions and the texts of its live and pending versions. The owner's metadata_version rows are replaced
+    /// in the same transaction as its LOCALIZATION observations, so both come from the same read.
+    private func readMetadata(_ run: inout Run, owner: LocalizationOwner, context: ScopeContext) async {
+        let kind = ObservationKind.localization
+        let scope = ObservationKind.scope(product: owner.ascId, kind: kind)
+        do {
+            let metadata = try await reader.metadata(owner: owner)
+            let current = Set([metadata.liveVersion, metadata.pendingVersion].compactMap { $0?.ascId })
+            let observed = try metadata.localizations.filter { current.contains($0.versionId) }.map { try Observed(.localization($0)) }
+            let syncId = run.syncId
+            let today = run.today
+            let findings = try await database.writer.write { db in
+                try db.execute(sql: "DELETE FROM metadata_version WHERE owner_key = ?", arguments: [owner.key])
+                for version in metadata.versions {
+                    try db.execute(sql: """
+                        INSERT OR REPLACE INTO metadata_version (asc_id, owner_key, number, state, last_sync) VALUES (?, ?, ?, ?, ?)
+                        """, arguments: [version.ascId, owner.key, version.number, version.state.rawValue, syncId])
+                }
+                return try apply(observed, product: owner.ascId, kind: kind, syncId: syncId, previousSync: context.previous[scope],
+                                 items: context.items, today: today, currentVersionIds: current, in: db)
+            }
+            run.completeScopes.insert(scope)
+            run.newFindings += findings
+        } catch {
+            run.failures[scope] = String(describing: error)
+        }
+    }
+
+    /// `currentVersionIds`: the live and pending version ids of the owner of a LOCALIZATION scope, empty for the price kinds.
+    /// A text whose version is not among them disappears silently, so it has no default.
     private func apply(_ observed: [Observed], product: String, kind: String, syncId: Int64, previousSync: Int64?,
-                       items: PurserItems, today: CalendarDate, in db: Database) throws -> [FindingRecord] {
+                       items: PurserItems, today: CalendarDate, currentVersionIds: Set<String>,
+                       in db: Database) throws -> [FindingRecord] {
         let baseline = previousSync == nil
         let label = Observed.label(kind: kind)
         var findings: [FindingRecord] = []
-        func raise(_ type: FindingType, _ cell: CellKey, _ message: String) throws {
-            if let finding = try catalog.upsertFinding(type: type, rule: nil, cell: cell, message: message, syncId: syncId, in: db) {
+        // `discriminator` tells this change of a row from the next one (see CatalogStore.upsertFinding).
+        func raise(_ type: FindingType, _ cell: CellKey, _ message: String, discriminator: String) throws {
+            if let finding = try catalog.upsertFinding(type: type, rule: nil, cell: cell, message: message, discriminator: discriminator,
+                                                       syncId: syncId, in: db) {
                 findings.append(finding)
             }
         }
@@ -208,32 +258,40 @@ public struct SyncEngine: Sendable {
                                                  arguments: [kind, row.ascId, hash]) {
                 // Unchanged: extend the version range. A row that comes back to an older state is evaluated like a change.
                 try db.execute(sql: "UPDATE observation SET last_sync = ?, expired = 0 WHERE id = ?", arguments: [syncId, existing])
-                if baseline || previousIdentities.contains("\(row.ascId)|\(hash)") || items.explainsAppearance(row) { continue }
-                try raise(.external, row.cell, "\(label) \(row.ascId) went back to an earlier form outside Purser")
+                if baseline || previousIdentities.contains("\(row.ascId)|\(hash)") || items.explainsAppearance(row, seenBefore: true) { continue }
+                try raise(.external, row.cell, "\(label) \(row.ascId) went back to an earlier form outside Purser", discriminator: hash)
                 continue
             }
-            let provenance: Provenance = baseline ? .baseline : (items.explainsAppearance(row) ? .purser : .external)
+            let provenance: Provenance
+            if baseline {
+                provenance = .baseline
+            } else {
+                // No row with this content exists, so any row of this asc id holds other content.
+                let seenBefore = try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM observation WHERE kind = ? AND asc_id = ?)",
+                                                   arguments: [kind, row.ascId]) ?? false
+                provenance = items.explainsAppearance(row, seenBefore: seenBefore) ? .purser : .external
+            }
             try db.execute(sql: """
                 INSERT INTO observation (kind, asc_id, product_asc_id, cell_key, raw_json, content_hash, first_sync, last_sync, provenance)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, arguments: [kind, row.ascId, product, row.cell.storageKey, row.rawJSON, hash, syncId, syncId, provenance.rawValue])
             if provenance == .external {
                 let verb = previousAscIds.contains(row.ascId) ? "changed" : "appeared"
-                try raise(.external, row.cell, "\(label) \(row.ascId) \(verb) outside Purser")
+                try raise(.external, row.cell, "\(label) \(row.ascId) \(verb) outside Purser", discriminator: hash)
             }
         }
 
         if !baseline {
             let observedIds = Set(observed.map(\.ascId))
             for gone in previous where !observedIds.contains(gone.ascId) {
-                if Self.isExpectedDisappearance(gone.row, observed: observed, today: today) {
+                if Self.isExpectedDisappearance(gone.row, observed: observed, today: today, currentVersionIds: currentVersionIds) {
                     try db.execute(sql: "UPDATE observation SET expired = 1 WHERE id = ?", arguments: [gone.id])
                 } else if items.explainsRemoval(gone.row) {
                     continue
                 } else if gone.provenance == .purser {
-                    try raise(.scheduleBroken, gone.cell, "\(label) \(gone.ascId) written by Purser disappeared")
+                    try raise(.scheduleBroken, gone.cell, "\(label) \(gone.ascId) written by Purser disappeared", discriminator: String(gone.id))
                 } else {
-                    try raise(.external, gone.cell, "\(label) \(gone.ascId) disappeared outside Purser")
+                    try raise(.external, gone.cell, "\(label) \(gone.ascId) disappeared outside Purser", discriminator: String(gone.id))
                 }
             }
         }
@@ -254,9 +312,11 @@ public struct SyncEngine: Sendable {
         return findings
     }
 
-    /// Disappearances Apple produces on its own: an intro after its endDate, and a non-preserved price row
-    /// replaced by a newer row that has already started (spec §5 "expired"; spikes S4a and S6 confirm).
-    static func isExpectedDisappearance(_ row: Observed.Row, observed: [Observed], today: CalendarDate) -> Bool {
+    /// Disappearances Apple produces on its own: an intro after its endDate, a non-preserved price row replaced by a newer
+    /// row that has already started (spec §5 "expired"; spikes S4a and S6 confirm), and a text whose version is neither
+    /// live nor pending any more (Apple approved a newer version; `currentVersionIds` holds the live and pending ids).
+    static func isExpectedDisappearance(_ row: Observed.Row, observed: [Observed], today: CalendarDate,
+                                        currentVersionIds: Set<String>) -> Bool {
         switch row {
         case let .intro(offer):
             return offer.endDate.map { $0 <= today } ?? false
@@ -267,6 +327,8 @@ public struct SyncEngine: Sendable {
                       let newStart = new.startDate, newStart <= today else { return false }
                 return old.startDate.map { $0 < newStart } ?? true
             }
+        case let .localization(old):
+            return !currentVersionIds.contains(old.versionId)
         case .promo, .schedule:
             return false
         }

@@ -102,12 +102,15 @@ public actor SpikeProbe {
 
     /// From the latest snapshot: the "Purser Spike" group, its subscriptions, their price points, regular price rows, intro
     /// rows, promo offers and promo prices; the IAP with productId `spikeIAPProductId`, its schedule, manual prices and price
-    /// points; plus every id this probe instance created. Throws noSnapshot.
+    /// points; the versions and localizations of the spike subscriptions, the spike group and that IAP (spike SL10n); plus
+    /// every id this probe instance created. Throws noSnapshot.
     public func allowedIds() throws -> Set<String> {
         guard let snapshot = try catalog.latestSnapshot() else { throw SpikeProbeError.noSnapshot }
         var ids = created
         let subscriptions = snapshot.subscriptions.values.filter { $0.groupName == Self.spikeGroupName }
         let subscriptionIds = Set(subscriptions.map(\.ascId))
+        var owners = subscriptionIds.sorted().map { LocalizationOwner.subscription($0) }
+            + Set(subscriptions.map(\.groupId)).sorted().map { LocalizationOwner.group($0) }
         for subscription in subscriptions {
             ids.insert(subscription.groupId)
             ids.insert(subscription.ascId)
@@ -136,6 +139,7 @@ public actor SpikeProbe {
         }
         if let iap = snapshot.iaps.values.first(where: { $0.productId == Self.spikeIAPProductId }) {
             ids.insert(iap.ascId)
+            owners.append(.iap(iap.ascId))
             for territory in snapshot.territories.keys {
                 for point in snapshot.pricePoints.points(productAscId: iap.ascId, territory: territory, planType: nil) { ids.insert(point.id) }
             }
@@ -146,6 +150,11 @@ public actor SpikeProbe {
                     ids.insert(price.pricePointId)
                 }
             }
+        }
+        for owner in owners {
+            guard let metadata = snapshot.metadata[owner] else { continue }
+            ids.formUnion(metadata.versions.map(\.ascId))
+            ids.formUnion(metadata.localizations.map(\.ascId))
         }
         return ids
     }

@@ -53,4 +53,24 @@ extension LiveASCClient: ASCWriting {
         _ = try await http.send(method: route.method, path: route.path,
                                 body: try WriteBodies.replaceIAPSchedule(request).data())
     }
+
+    public func createLocalization(versionId: String, owner: LocalizationOwner, locale: String, text: LocalizationText) async throws -> LocalizationRow {
+        let route = WritePaths.createLocalization(owner.kind)
+        let document = try await http.send(method: route.method, path: route.path,
+                                           body: try WriteBodies.createLocalization(versionId: versionId, owner: owner, locale: locale, text: text).data())
+        return try WriteResponses.localizationRow(document, owner: owner, versionId: versionId, locale: locale, text: text)
+    }
+
+    public func updateLocalization(localizationId: String, owner: LocalizationOwner, text: LocalizationText) async throws {
+        let route = WritePaths.updateLocalization(owner.kind, id: localizationId)
+        _ = try await http.send(method: route.method, path: route.path,
+                                body: try WriteBodies.updateLocalization(localizationId: localizationId, owner: owner, text: text).data())
+    }
+
+    public func createMetadataVersion(owner: LocalizationOwner) async throws -> MetadataVersion {
+        let route = WritePaths.metadataVersion(owner.kind)
+        let document = try await http.send(method: route.method, path: route.path,
+                                           body: try WriteBodies.createMetadataVersion(owner: owner).data())
+        return try WriteResponses.metadataVersion(document, owner: owner)
+    }
 }

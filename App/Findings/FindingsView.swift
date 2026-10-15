@@ -70,10 +70,12 @@ struct FindingsView: View {
             ForEach(shown, id: \.id) { finding in
                 Divider().overlay(PurserColor.separator)
                 HStack(alignment: .firstTextBaseline, spacing: PurserSpacing.space3) {
-                    Text(finding.cell.territory?.rawValue ?? finding.cell.storageKey)
+                    // A territory or a locale fits the column; an owner's name or a storage key widens it for its row.
+                    Text(cellLabel(finding.cell))
                         .font(PurserFont.identifier)
                         .foregroundStyle(PurserColor.textSecondary)
-                        .frame(width: 48, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(minWidth: 48, alignment: .leading)
                     Text(finding.message).font(PurserFont.body).textSelection(.enabled)
                     Spacer(minLength: 0)
                 }
@@ -122,6 +124,17 @@ struct FindingsView: View {
         }
         .padding(PurserSpacing.space5)
         .frame(width: 440)
+    }
+
+    /// The territory of a price cell, the locale of a text cell and the owner's name for a version cell, as the Plan
+    /// screen names them; the storage key for the other cells.
+    private func cellLabel(_ cell: CellKey) -> String {
+        if let territory = cell.territory { return territory.rawValue }
+        switch cell {
+        case let .localization(_, locale): return locale
+        case let .metadataVersion(owner): return model.productName(owner.ascId)
+        case .regular, .intro, .promo, .iapSchedule: return cell.storageKey
+        }
     }
 
     /// "Intro ≥ regular price"; falls back to the finding type when the rule has no title.

@@ -1,16 +1,16 @@
 # Purser
 
-Purser is a native macOS app for one user that plans, writes and verifies the prices of iOS apps in App Store Connect (ASC): regular prices of auto-renewable subscriptions, introductory offers, promotional offers and prices of one-time purchases (IAP, typically lifetime).
+Purser is a native macOS app for one user that plans, writes and verifies the prices of iOS apps in App Store Connect (ASC): regular prices of auto-renewable subscriptions, introductory offers, promotional offers and prices of one-time purchases (IAP, typically lifetime). The same way it writes the localized names and descriptions of subscriptions, in-app purchases and subscription groups, and it clones products for A/B tests: a clone gets its source's attributes, availability, texts and review screenshot, and the source's prices and offers come as Draft plans. Submitting for review stays one click in App Store Connect.
 
 Every change takes the same path: import from a Google Sheet or a CSV, or a rule → diff against the live ASC state → check of Apple's rules → stronger confirmation for risky changes → write item by item → verification by reading back → a record in the append-only audit.
 
-> **Purser writes to production.** The App Store Connect API has no sandbox: every price Purser writes is a real price in your live app. Review each plan before you apply it, start with one territory (the CANARY flag), and keep the first writes on a subscription group that is never submitted for review. The software is provided as is, without warranty of any kind (see [LICENSE](LICENSE)); you are responsible for the changes it makes in your account.
+> **Purser writes to production.** The App Store Connect API has no sandbox: every price Purser writes is a real price in your live app, and every text it writes goes into your app's real records in App Store Connect. A new version Purser creates to change the texts of an approved product cannot be deleted through the API, and the Product IDs of a clone can never be used again, not even after the clone is deleted. Review each plan before you apply it, start with one territory (the CANARY flag), and keep the first writes on a subscription group that is never submitted for review. The software is provided as is, without warranty of any kind (see [LICENSE](LICENSE)); you are responsible for the changes it makes in your account.
 >
 > Purser is an independent project. It is not affiliated with, endorsed by or sponsored by Apple Inc. App Store Connect, App Store and TestFlight are trademarks of Apple Inc.
 
 ## Tested on a real app
 
-Purser was developed and tested on the maintainer's own app, [Juice: Fuel & EV Charge Log](https://apps.apple.com/app/juice-fuel-ev-charge-log/id6787720329). The specification and the spike records in `docs/` call it Juice. All live trials ran in its "Purser Spike" subscription group, which is never submitted for review.
+Purser was developed and tested on the maintainer's own app, [Juice: Fuel & EV Charge Log](https://apps.apple.com/app/juice-fuel-ev-charge-log/id6787720329). The specification and the spike records in `docs/` call it Juice. All live trials ran in its "Purser Spike" subscription group, which is never submitted for review. The text and cloning writes added in 1.2 have not run against live App Store Connect yet: spike SL10n ([docs/spikes/SL10n.md](docs/spikes/SL10n.md)) is pending, and until it runs, what Purser expects Apple to answer to those requests is an assumption.
 
 ## Install
 
@@ -20,13 +20,13 @@ Then add your app as a workspace: [docs/runbooks/new-workspace.md](docs/runbooks
 
 ## Claude Desktop (MCP)
 
-Purser can be driven from an MCP client on the same Mac, such as Claude Desktop: reading prices, findings and plans, importing a price table, building Draft plans and, if you allow it, applying them. It is off by default.
+Purser can be driven from an MCP client on the same Mac, such as Claude Desktop: reading prices, texts, findings and plans, importing a price table, building Draft plans and, if you allow it, applying them and creating or cloning products. It is off by default.
 
 1. Purser › Settings › Claude (MCP): turn on **Let Claude control Purser**.
 2. Press **Copy the Claude Desktop configuration** and merge the `purser` entry into `~/Library/Application Support/Claude/claude_desktop_config.json`.
 3. Restart Claude Desktop and ask it for the Purser status.
 
-A second switch, **Apply plans and create products without Touch ID**, lets Claude write to App Store Connect. Read [docs/runbooks/mcp.md](docs/runbooks/mcp.md) first: it lists every tool and what that switch gives up.
+A second switch, **Apply plans and create or clone products without Touch ID**, lets Claude write to App Store Connect. Read [docs/runbooks/mcp.md](docs/runbooks/mcp.md) first: it lists every tool and what that switch gives up.
 
 ## Name
 
@@ -38,7 +38,8 @@ The app shows itself to the user as **Purser Pricing** (the name "Purser" is tak
 - Every iOS app has its own, fully separate workspace (database, key, settings). Writing to the wrong app must be impossible, not just unlikely.
 - The ASC API has no sandbox; every write goes to production. Spikes and first writes run only on a test subscription group that is never submitted for review.
 - Nothing in the code is specific to one app; everything is workspace configuration.
-- Only the code in `Sources/Executor` writes to ASC. In a Release build that is only a plan that passed preflight and confirmation; a Debug build adds two narrow probes for spikes: `SpikeProbe` lets through only ids from the "Purser Spike" test group, `ApprovedProbe` (not implemented yet, it comes only after OQ1 is approved in writing) only the OQ1 probes. Every write is preceded by an `httpSent` event in the audit.
+- Only the code in `Sources/Executor` writes to ASC. In a Release build that is a plan that passed preflight and confirmation (`Executor`), or a product creation or clone that checked its request and read what App Store Connect already has (`ProductCreator`); a Debug build adds two narrow probes for spikes: `SpikeProbe` lets through only ids from the "Purser Spike" test group, `ApprovedProbe` (not implemented yet, it comes only after OQ1 is approved in writing) only the OQ1 probes. Every write is preceded by an `httpSent` event in the audit.
+- Apart from the ASC API, only `AssetTransfer` (in `Sources/Executor`) talks to Apple, to copy a clone's review screenshot: it downloads from Apple's image CDN and uploads to Apple's upload hosts, https only, without the key and without following a redirect, and every upload is in the audit.
 - The tools in `Tools/` send only GET with a GET-scoped token; no script and no curl holds a token usable for a write.
 
 ## Building from source
@@ -74,7 +75,7 @@ make generate
 | `make generate` | XcodeGen generates `Purser.xcodeproj` from `project.yml` |
 | `make test` | tests of the PurserCore package (`swift test --package-path Packages/PurserCore`, Swift Testing) |
 | `make build` | generate + an unsigned Debug build (`CODE_SIGNING_ALLOWED=NO`); checks that everything compiles |
-| `make check-endpoints` | checks the ASC paths of contract K5 against OpenAPI 4.5.1 |
+| `make check-endpoints` | checks the ASC paths listed in `docs/research/asc-api-paths.md` against OpenAPI 4.5.1 |
 | `make archive` | a Release archive signed by the team from `Signing.local.xcconfig` (only from a clean tree) |
 | `make testflight` | archive + export and upload to App Store Connect (TestFlight, internal testing only) |
 | `make release` | a Developer ID build, notarized and packed as a DMG in `build/release/` (needs a `notarytool` keychain profile named `purser-notary`) |
@@ -106,6 +107,7 @@ The dev build and the TestFlight build share the bundle id and therefore the dat
 | Document | Content |
 |---|---|
 | [docs/specs/2026-10-09-purser-v1-design.md](docs/specs/2026-10-09-purser-v1-design.md) | v1 design: scope, decisions, architecture, data model, life cycle of a change, rules, screens, spikes |
+| [docs/specs/2026-10-14-localizations-and-cloning-design.md](docs/specs/2026-10-14-localizations-and-cloning-design.md) | 1.2 design: localized texts through plans, new versions of approved products, cloning products; known limitations |
 | [docs/research/asc-api-facts.md](docs/research/asc-api-facts.md) | verified facts about the App Store Connect API |
 | [docs/research/asc-api-paths.md](docs/research/asc-api-paths.md) | every App Store Connect API path Purser calls |
 | [docs/design/README.md](docs/design/README.md) | design system: dark, black ground, glass, native components; tokens in `docs/design/tokens.json`, generated Swift tokens in `App/Shared/Design/` |
