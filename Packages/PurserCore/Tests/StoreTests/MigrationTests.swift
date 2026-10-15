@@ -11,7 +11,8 @@ import PurserTestSupport
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'grdb_%' ORDER BY name")
         }
         #expect(tables == ["audit_event", "finding", "item", "metadata_version", "observation", "offer_code_registry", "plan",
-                           "price_point", "product", "subscription_group", "sync_run", "territory", "workspace"])
+                           "price_point", "price_point_generation", "product", "subscription_group", "sync_run", "territory",
+                           "workspace"])
         let indexes = try database.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name")
         }
@@ -20,7 +21,8 @@ import PurserTestSupport
         let triggers = try database.writer.read { db in
             try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name")
         }
-        #expect(triggers == ["audit_no_delete", "audit_no_update"])
+        #expect(triggers == ["audit_no_delete", "audit_no_update", "price_point_generation_delete", "price_point_generation_insert",
+                             "price_point_generation_update"])
     }
 
     @Test func migrationV2UpgradesADatabaseMadeByV1() throws {
@@ -32,12 +34,53 @@ import PurserTestSupport
             try db.execute(sql: "INSERT INTO sync_run (trigger, status, started_at) VALUES ('manual', 'complete', '2026-10-09T12:00:00.000Z')")
         }
         try Migrations.migrator.migrate(queue)
-        #expect(try queue.read { db in try Migrations.migrator.appliedMigrations(db) } == ["v1", "v2"])
+        #expect(try queue.read { db in try Migrations.migrator.appliedMigrations(db) } == ["v1", "v2", "v3"])
         try queue.write { db in
             try db.execute(sql: "INSERT INTO subscription_group (asc_id, reference_name, first_sync, last_sync) VALUES ('7000000001', 'Fruit Premium', 1, 1)")
             try db.execute(sql: "INSERT INTO metadata_version (asc_id, owner_key, number, state, last_sync) VALUES ('sver-1', 'S|6500000001', 1, 'APPROVED', 1)")
         }
         #expect(try queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sync_run") } == 1)
+    }
+
+    @Test func migrationV3StartsTheGenerationOfAV2Database() throws {
+        let queue = try DatabaseQueue()
+        var throughV2 = DatabaseMigrator()
+        throughV2.registerMigration("v1") { db in try db.execute(sql: Migrations.v1) }
+        throughV2.registerMigration("v2") { db in try db.execute(sql: Migrations.v2) }
+        try throughV2.migrate(queue)
+        try queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO price_point (id, product_asc_id, territory, plan_type, customer_price, proceeds, fetched_at)
+                VALUES ('pp-1', '6500000001', 'USA', 'UPFRONT', '9.99', '7.0', '2026-10-09T12:00:00.000Z')
+                """)
+        }
+        try Migrations.migrator.migrate(queue)
+        #expect(try queue.read { db in try Int64.fetchOne(db, sql: "SELECT value FROM price_point_generation") } == 0)
+        #expect(try queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM price_point") } == 1)
+    }
+
+    @Test func everyChangeOfAPricePointBumpsTheGeneration() throws {
+        let database = try WorkspaceDatabase.inMemory()
+        func generation() throws -> Int64? {
+            try database.writer.read { db in try Int64.fetchOne(db, sql: "SELECT value FROM price_point_generation") }
+        }
+        #expect(try generation() == 0)
+        try database.writer.write { db in
+            for id in ["pp-1", "pp-2"] {
+                try db.execute(sql: """
+                    INSERT INTO price_point (id, product_asc_id, territory, plan_type, customer_price, proceeds, fetched_at)
+                    VALUES (?, '6500000001', 'USA', 'UPFRONT', '9.99', NULL, '2026-10-09T12:00:00.000Z')
+                    """, arguments: [id])
+            }
+        }
+        #expect(try generation() == 2)
+        try database.writer.write { db in try db.execute(sql: "UPDATE price_point SET customer_price = '10.99' WHERE id = 'pp-1'") }
+        #expect(try generation() == 3)
+        try database.writer.write { db in try db.execute(sql: "DELETE FROM price_point") }
+        #expect(try generation() == 5)
+        // An unrelated write leaves it alone.
+        try database.writer.write { db in try db.execute(sql: "INSERT INTO territory (code, currency) VALUES ('CZE', 'CZK')") }
+        #expect(try generation() == 5)
     }
 
     @Test func auditEventRejectsUpdateAndDelete() throws {

@@ -34,14 +34,17 @@ struct Snapper: Sendable {
         guard amount > 0 else {
             return .blocked(Verdict(rule: "S4", severity: .block(.cell), cell: cell, message: "The target amount \(amount) is not positive."))
         }
-        var points = index.points(productAscId: productAscId, territory: territory, planType: planType)
-        if points.isEmpty, planType != nil { points = index.points(productAscId: productAscId, territory: territory, planType: nil) }
+        var ladder = index.ladder(productAscId: productAscId, territory: territory, planType: planType)
+        if ladder.isEmpty, planType != nil { ladder = index.ladder(productAscId: productAscId, territory: territory, planType: nil) }
+        // Choose on the prices and build only the chosen point.
+        let prices = ladder.prices
         let chosen: PricePoint?
         switch direction {
         case .nearest:
-            chosen = points.min { Self.deviation(of: $0.customerPrice, from: amount) < Self.deviation(of: $1.customerPrice, from: amount) }
+            chosen = prices.indices.min { Self.deviation(of: prices[$0], from: amount) < Self.deviation(of: prices[$1], from: amount) }
+                .map { ladder[$0] }
         case .down:
-            chosen = points.last { $0.customerPrice <= amount }
+            chosen = prices.lastIndex { $0 <= amount }.map { ladder[$0] }
         }
         guard let point = chosen else {
             let what = direction == .down ? "≤ \(amount)" : "for \(amount)"

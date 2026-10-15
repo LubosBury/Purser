@@ -60,6 +60,16 @@ enum Migrations {
     CREATE INDEX metadata_version_owner ON metadata_version(owner_key);
     """
 
+    /// Migration v3: a counter of changes to `price_point` (one row), bumped in the writer's transaction, so a reader
+    /// can keep its price point index while the generation stays the same (CatalogStore). Never edit: add v4 instead.
+    static let v3 = """
+    CREATE TABLE price_point_generation (value INTEGER NOT NULL);
+    INSERT INTO price_point_generation (value) VALUES (0);
+    CREATE TRIGGER price_point_generation_insert AFTER INSERT ON price_point BEGIN UPDATE price_point_generation SET value = value + 1; END;
+    CREATE TRIGGER price_point_generation_update AFTER UPDATE ON price_point BEGIN UPDATE price_point_generation SET value = value + 1; END;
+    CREATE TRIGGER price_point_generation_delete AFTER DELETE ON price_point BEGIN UPDATE price_point_generation SET value = value + 1; END;
+    """
+
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1") { db in
@@ -67,6 +77,9 @@ enum Migrations {
         }
         migrator.registerMigration("v2") { db in
             try db.execute(sql: v2)
+        }
+        migrator.registerMigration("v3") { db in
+            try db.execute(sql: v3)
         }
         return migrator
     }

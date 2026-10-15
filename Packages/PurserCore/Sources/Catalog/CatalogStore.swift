@@ -6,13 +6,16 @@ import Store
 
 public struct CatalogStore: Sendable {
     private let database: WorkspaceDatabase
+    /// Shared by every copy of this store: its snapshots share one price point index until the price points change.
+    private let pricePoints = PricePointCache()
 
     public init(database: WorkspaceDatabase) {
         self.database = database
     }
 
     /// The catalog as of the latest complete or partial sync; every (product, kind) scope shows the rows of the
-    /// last sync that read it completely. nil before the first successful sync.
+    /// last sync that read it completely. nil before the first successful sync. The price points are the ones stored
+    /// now; snapshots that see the same price points share one index.
     public func latestSnapshot() throws -> CatalogSnapshot? {
         try database.writer.read { db in
             guard let latest = try Row.fetchOne(db, sql: """
@@ -63,13 +66,7 @@ public struct CatalogStore: Sendable {
                 }
             }
 
-            let points = try Row.fetchAll(db, sql: "SELECT * FROM price_point").map { row -> PricePoint in
-                let planType: String? = row["plan_type"]
-                return PricePoint(id: row["id"], productAscId: row["product_asc_id"], territory: TerritoryCode(row["territory"] as String),
-                                  planType: planType.flatMap(PlanType.init(rawValue:)),
-                                  customerPrice: Decimal(string: row["customer_price"], locale: Locale(identifier: "en_US_POSIX")) ?? 0,
-                                  proceeds: (row["proceeds"] as String?).flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) })
-            }
+            let points = try pricePoints.index(db)
             let codes = Set(try String.fetchAll(db, sql: "SELECT offer_code FROM offer_code_registry"))
             let metadata = try Self.metadata(db, texts: texts, known: Set(subscriptions.keys.map { LocalizationOwner.subscription($0) }
                                                                          + iaps.keys.map { LocalizationOwner.iap($0) }
@@ -77,7 +74,7 @@ public struct CatalogStore: Sendable {
 
             return CatalogSnapshot(syncId: syncId, takenAt: takenAt, subscriptions: subscriptions, iaps: iaps, territories: territories,
                                    regularRows: regular, introRows: intro, promoOffers: promo, iapSchedules: schedules,
-                                   pricePoints: PricePointIndex(points), offerCodesEverSeen: codes, groups: groups, metadata: metadata)
+                                   pricePoints: points, offerCodesEverSeen: codes, groups: groups, metadata: metadata)
         }
     }
 

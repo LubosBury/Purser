@@ -7,7 +7,8 @@ public enum EqualizedPrices {
     /// The price point of exactly `amount` in the base territory; nil when the amount is not on the product's ladder.
     public static func basePoint(in index: PricePointIndex, productAscId: String, territory: TerritoryCode, planType: PlanType?,
                                  amount: Decimal) -> PricePoint? {
-        index.points(productAscId: productAscId, territory: territory, planType: planType).first { $0.customerPrice == amount }
+        let ladder = index.ladder(productAscId: productAscId, territory: territory, planType: planType)
+        return ladder.prices.firstIndex(of: amount).map { ladder[$0] }
     }
 
     /// Lines "CODE<TAB>price" sorted by territory, in the format PastedAmountTable reads. The base territory keeps the
