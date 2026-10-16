@@ -289,7 +289,7 @@ struct PlanView: View {
             TableColumn("Operation") { row in Text(row.op.rawValue).font(PurserFont.identifier).foregroundStyle(PurserColor.textSecondary) }
                 .width(min: 70, ideal: 110)
             TableColumn("Before") { row in PurserFigure(row.before, color: PurserColor.textSecondary).help(row.before) }
-            TableColumn("Po") { row in PurserFigure(row.after).help(row.after) }
+            TableColumn("After") { row in PurserFigure(row.after).help(row.after) }
             TableColumn("Change") { row in PurserFigure(PlanFormatting.signedPercent(row.deltaPercent), color: deltaColor(row.deltaPercent)) }
                 .width(70)
             TableColumn("Effective from") { row in Text(row.date?.iso ?? "").font(PurserFont.figure) }

@@ -124,7 +124,7 @@ struct IAPPlanTab: View {
                         TableColumn("From") { row in Text(row.startDate?.iso ?? "now").font(PurserFont.figure) }
                         TableColumn("To") { row in Text(row.endDate?.iso ?? "–").font(PurserFont.figure) }
                         TableColumn("Before") { row in PurserFigure(Self.plain(row.before), color: PurserColor.textSecondary) }
-                        TableColumn("Po") { row in PurserFigure(Self.plain(row.after)) }
+                        TableColumn("After") { row in PurserFigure(Self.plain(row.after)) }
                         TableColumn("Change %") { row in PurserFigure(Self.plain(row.deltaPercent)) }
                         TableColumn("Change kind") { row in Text(row.change.rawValue).font(PurserFont.identifier).foregroundStyle(PurserColor.textSecondary) }
                     }
