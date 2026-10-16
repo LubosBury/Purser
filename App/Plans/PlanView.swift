@@ -137,7 +137,7 @@ struct PlanView: View {
                     VStack(alignment: .leading, spacing: PurserSpacing.space1) {
                         Text("Key \(plan.binding.keyKind.rawValue) \(plan.binding.keyId)\(plan.binding.issuerId.map { " · issuer \($0)" } ?? "")")
                         Text("App \(plan.binding.appId) · \(plan.binding.bundleId) · build \(plan.appBuild)")
-                        Text("Operace: \(presentation.opCounts.map { "\($0.op.rawValue) \($0.count)" }.joined(separator: " · "))")
+                        Text("Operations: \(presentation.opCounts.map { "\($0.op.rawValue) \($0.count)" }.joined(separator: " · "))")
                         Text("Plan \(plan.id)")
                     }
                     .font(PurserFont.identifier)
@@ -265,7 +265,7 @@ struct PlanView: View {
             .labelsHidden()
             .fixedSize()
             if let ruleFilter {
-                Button { self.ruleFilter = nil } label: { Label("Pravidlo \(ruleFilter.rawValue)", systemImage: "xmark") }
+                Button { self.ruleFilter = nil } label: { Label("Rule \(ruleFilter.rawValue)", systemImage: "xmark") }
                     .controlSize(.small)
                     .purserButton()
                     .help("Clear the rule filter")

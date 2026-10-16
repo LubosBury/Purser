@@ -8,7 +8,7 @@ import Planner
 @MainActor @Observable
 final class RegularPlanModel {
     enum PreserveChoice: String, CaseIterable, Identifiable {
-        case unset = "Not selected", keep = "Yes, existing subscribers keep their price", drop = "Ne"
+        case unset = "Not selected", keep = "Yes, existing subscribers keep their price", drop = "No, existing subscribers get the new price too"
         var id: String { rawValue }
     }
 

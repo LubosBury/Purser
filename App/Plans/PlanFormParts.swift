@@ -29,7 +29,7 @@ struct PlanFormScaffold<Content: View, Footer: View>: View {
     }
 }
 
-/// One step of a plan form: "2. Produkty", its controls and an optional hint. Steps that only appear for some
+/// One step of a plan form: "2. Products", its controls and an optional hint. Steps that only appear for some
 /// inputs carry no number.
 struct PlanFormStep<Content: View>: View {
     private let number: Int?
@@ -225,7 +225,7 @@ struct PlanFormFooter: View {
     private func summary(_ draft: PlanDraft) -> String {
         var parts = ["\(draft.items.count) changes"]
         if !draft.excluded.isEmpty { parts.append("\(draft.excluded.count) cells excluded") }
-        parts.append("asi \(draft.estimate.minutes) min")
+        parts.append("about \(draft.estimate.minutes) min")
         parts.append("confirmation C\(draft.confirmationLevel.rawValue)")
         return parts.joined(separator: " · ")
     }

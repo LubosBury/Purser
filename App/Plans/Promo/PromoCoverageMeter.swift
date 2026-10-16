@@ -9,7 +9,7 @@ struct PromoCoverageMeter: View {
             VStack(alignment: .leading, spacing: PurserSpacing.space1) {
                 HStack {
                     Text(coverage.isComplete ? "Covered " : "Missing prices ").foregroundStyle(PurserColor.textSecondary)
-                        + Text("\(coverage.covered) z \(coverage.required)").bold().foregroundStyle(PurserColor.textPrimary)
+                        + Text("\(coverage.covered) of \(coverage.required)").bold().foregroundStyle(PurserColor.textPrimary)
                     Spacer()
                 }
                 .font(PurserFont.callout)

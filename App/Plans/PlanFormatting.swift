@@ -4,12 +4,12 @@ import Domain
 import Store
 
 enum PlanFormatting {
-    /// 0.2 -> "20.0 %"; nil -> "".
+    /// 0.2 -> "20.0%"; nil -> "".
     static func percent(_ fraction: Decimal?) -> String {
         guard var value = fraction.map({ $0 * 100 }) else { return "" }
         var rounded = Decimal()
         NSDecimalRound(&rounded, &value, 1, .plain)
-        return "\(rounded) %"
+        return "\(rounded)%"
     }
 
     static func amount(_ value: Decimal?) -> String { value.map { "\($0)" } ?? "" }
@@ -20,7 +20,7 @@ enum PlanFormatting {
         case .block(.cell): return "BLOCK · CELL"
         case let .confirm(level): return "C\(level.rawValue)"
         case .warn: return "WARN"
-        case .pause: return "PAUZA"
+        case .pause: return "PAUSE"
         }
     }
 
@@ -45,7 +45,7 @@ enum PlanFormatting {
         }
     }
 
-    /// 0.125 -> "+12.5 %"; the sign is always written so colour is not the only signal.
+    /// 0.125 -> "+12.5%"; the sign is always written so colour is not the only signal.
     static func signedPercent(_ fraction: Decimal?) -> String {
         guard let fraction else { return "" }
         let text = percent(fraction)
@@ -100,7 +100,7 @@ enum PlanFormatting {
         case .block: return "BLOCK"
         case let .confirm(level): return "C\(level.rawValue)"
         case .warn: return "WARN"
-        case .pause: return "PAUZA"
+        case .pause: return "PAUSE"
         }
     }
 

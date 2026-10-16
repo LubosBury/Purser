@@ -133,7 +133,7 @@ struct ApplyProgressView: View {
         VStack(alignment: .leading, spacing: PurserSpacing.space1) {
             HStack {
                 Text("\(status) ").foregroundStyle(PurserColor.textSecondary)
-                    + Text("\(controller.done) z \(controller.total)").bold().foregroundStyle(PurserColor.textPrimary)
+                    + Text("\(controller.done) of \(controller.total)").bold().foregroundStyle(PurserColor.textPrimary)
                 Spacer()
                 if let eta = controller.etaMinutes, !isPaused {
                     Text("about \(eta) min left").foregroundStyle(PurserColor.textSecondary)

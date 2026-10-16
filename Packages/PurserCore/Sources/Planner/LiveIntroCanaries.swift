@@ -2,7 +2,7 @@ import Foundation
 import Domain
 import Store
 
-/// I7 (CR-11): "jeho Effective odemkne zbytek". Products whose live intro replacement was proven by an Effective CANARY plan.
+/// I7 (CR-11): an Effective canary unlocks the rest. Products whose live intro replacement was proven by an Effective CANARY plan.
 public enum LiveIntroCanaries {
     /// Subscription asc ids taken from the cells of Effective `endIntro` items of Effective plans whose spec (without fix
     /// wrappers) is an INTRO or IMPORT spec with canary == true. Plans whose spec does not decode are skipped.

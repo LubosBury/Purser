@@ -125,7 +125,7 @@ struct IAPPlanTab: View {
                         TableColumn("To") { row in Text(row.endDate?.iso ?? "–").font(PurserFont.figure) }
                         TableColumn("Before") { row in PurserFigure(Self.plain(row.before), color: PurserColor.textSecondary) }
                         TableColumn("After") { row in PurserFigure(Self.plain(row.after)) }
-                        TableColumn("Change %") { row in PurserFigure(Self.plain(row.deltaPercent)) }
+                        TableColumn("Change") { row in PurserFigure(PlanFormatting.signedPercent(row.deltaPercent.map { $0 / 100 })) }
                         TableColumn("Change kind") { row in Text(row.change.rawValue).font(PurserFont.identifier).foregroundStyle(PurserColor.textSecondary) }
                     }
                     .purserTable()
