@@ -29,7 +29,7 @@ public enum AppleConstants {
     /// O6: true when PATCH of a promo offer replaces the whole price set (spike S7); false = merge by territory.
     public static let promoPatchReplacesPriceSet = false
     /// L1: true after spike S10 confirmed that POST /v1/inAppPurchasePriceSchedules replaces the whole schedule.
-    public static let iapScheduleReplaceConfirmed = false
+    public static let iapScheduleReplaceConfirmed = true   // spike S10, 2026-10-16
     /// OQ3: true after spike SL confirmed the sandboxed login item syncs from the shared App Group container.
     public static let loginItemSyncConfirmed = false
     /// N2: locale shortcodes ASC accepts for localized metadata (developer.apple.com, "Managing metadata in your app by
