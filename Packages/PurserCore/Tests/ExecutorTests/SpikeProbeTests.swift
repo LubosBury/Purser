@@ -190,7 +190,7 @@ struct SpikeProbeTests {
         #expect(values["CURPP_YA_USA"] == "pp-sub-spike-a-USA-9")
         #expect(values["ABOVEPP_YA_USA"] == "pp-sub-spike-a-USA-10")
         #expect(values["SPIKE_LIFETIME"] == "iap-spike")
-        #expect(values["SPIKE_SCHEDULE"] == "sched-spike")
+        #expect(values["SPIKE_SCHEDULE"] == "iap-spike")
         #expect(SpikeVariables.catalog(snapshot: nil, config: h.config, today: h.today) == ["APP_ID": FakeSeed.appId])
     }
 

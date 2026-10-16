@@ -20,8 +20,8 @@ extension FakeSeed {
         }
         model.iaps.append(FakeIAP(id: "iap-spike", productId: "PurserSpikeLifetime", name: "PurserSpikeLifetime",
                                   type: "NON_CONSUMABLE", state: .readyToSubmit))
-        model.iapSchedules.append(FakeIAPSchedule(id: "sched-spike", iapId: "iap-spike", baseTerritory: "USA", manualPrices: [
-            FakeIAPManualPrice(id: "iapprice-spike-0", territory: "USA", pricePointId: "pp-iap-spike-USA-29", startDate: nil, endDate: nil)]))
+        model.iapSchedules.append(FakeIAPSchedule(id: "iap-spike", iapId: "iap-spike", baseTerritory: "USA", manualPrices: [
+            FakeIAPManualPrice(iapId: "iap-spike", territory: "USA", pricePointId: "pp-iap-spike-USA-29", startDate: nil, endDate: nil)]))
         let spikeTexts: [(owner: LocalizationOwner, name: String, second: String)] = [
             (.subscription("sub-spike-a"), "Spike Yearly A", "Spike yearly plan A"),
             (.group("grp-spike"), "Purser Spike", "Spike"),

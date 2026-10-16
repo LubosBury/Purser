@@ -271,6 +271,9 @@ extension FakeASC {
 
     // MARK: IAP price schedule
 
+    /// Spike S10: the POST replaces the whole schedule (manual prices, future ones included). The schedule id stays the IAP id,
+    /// row ids are derived from their content, and a body without a base-territory row or with overlapping intervals in one
+    /// territory is refused with the 409s Apple returned (Fixtures/spikes/S10/post-no-base.json, post-overlapping-intervals-409.json).
     func postSchedule(_ body: Data?) throws -> FakeReply {
         let (data, included) = try parse(body)
         guard let iapId = relId(data, "inAppPurchase"), model.iaps.contains(where: { $0.id == iapId }) else {
@@ -287,14 +290,44 @@ extension FakeASC {
             }
             let point = try pricePoint(pointId, product: iapId, territory: nil)
             let a = attributes(item)
-            manual.append(FakeIAPManualPrice(id: nextId("iapprice"), territory: point.territory, pricePointId: pointId,
+            manual.append(FakeIAPManualPrice(iapId: iapId, territory: point.territory, pricePointId: pointId,
                                              startDate: try date(a, "startDate") ?? (iapNullStartEchoesCreationDay ? today : nil),
                                              endDate: try date(a, "endDate")))
         }
-        let schedule = FakeIAPSchedule(id: nextId("sched"), iapId: iapId, baseTerritory: TerritoryCode(base), manualPrices: manual)
+        guard manual.contains(where: { $0.territory.rawValue == base }) else {
+            throw conflict(Self.iapScheduleNoBaseError.code, Self.iapScheduleNoBaseError.detail)
+        }
+        try requireDisjointIntervals(manual)
+        let schedule = FakeIAPSchedule(id: iapId, iapId: iapId, baseTerritory: TerritoryCode(base), manualPrices: manual)
         model.iapSchedules.removeAll { $0.iapId == iapId }
         model.iapSchedules.append(schedule)
-        return FakeReply(status: 201, body: single(resource("inAppPurchasePriceSchedules", schedule.id, attributes: [:])), applied: true)
+        let rows = schedule.manualPrices.map { price in
+            resource("inAppPurchasePrices", price.id,
+                     attributes: ["startDate": dateJSON(price.startDate), "endDate": dateJSON(price.endDate), "manual": .bool(true)])
+        }
+        let document = single(resource("inAppPurchasePriceSchedules", schedule.id, attributes: [:], relationships: [
+            "manualPrices": .object(["data": .array(schedule.manualPrices.map { ident("inAppPurchasePrices", $0.id) })]),
+        ]), included: Dictionary(uniqueKeysWithValues: zip(schedule.manualPrices.map(\.id), rows)))
+        return FakeReply(status: 201, body: document, applied: true)
+    }
+
+    /// Two rows of one territory may touch (one ends on the day the next starts) but not overlap; a missing start or end is open.
+    func requireDisjointIntervals(_ manual: [FakeIAPManualPrice]) throws {
+        for territory in Set(manual.map(\.territory)).sorted(by: { $0.rawValue < $1.rawValue }) {
+            let open = (start: CalendarDate(year: 0, month: 1, day: 1), end: CalendarDate(year: 9999, month: 12, day: 31))
+            let rows = manual.filter { $0.territory == territory }
+                .sorted { ($0.startDate ?? open.start, $0.endDate ?? open.end) < ($1.startDate ?? open.start, $1.endDate ?? open.end) }
+            for (i, a) in rows.enumerated() {
+                for b in rows[(i + 1)...] where (b.startDate ?? open.start) < (a.endDate ?? open.end) {
+                    throw conflict(Self.iapScheduleOverlapErrorCode,
+                                   "Adjacent intervals must not intersect for \(territory.rawValue): \(interval(a)) and \(interval(b))")
+                }
+            }
+        }
+    }
+
+    private func interval(_ row: FakeIAPManualPrice) -> String {
+        "[\(row.startDate.map { "\($0.iso)T00:00" } ?? "null") - \(row.endDate.map { "\($0.iso)T00:00" } ?? "null")]"
     }
 }
 
@@ -310,4 +343,20 @@ extension FakeASC {
         }
         return (code, detail)
     }()
+}
+
+extension FakeASC {
+    /// Spike S10 (S10-12r): the 409 Apple returned for a schedule without a manual price in the base territory.
+    public static let iapScheduleNoBaseError: (code: String, detail: String) = {
+        guard let data = try? Fixtures.data("spikes/S10/post-no-base.json"),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let first = (root["errors"] as? [[String: Any]])?.first,
+              let code = first["code"] as? String, let detail = first["detail"] as? String else {
+            return ("ENTITY_ERROR.BASE_TERRITORY_INTERVAL_REQUIRED", "There must be at least one manual price for the base territory.")
+        }
+        return (code, detail)
+    }()
+
+    /// Spike S10 (S10-6): the code of the 409 for overlapping intervals in one territory; the detail names the territory and both intervals.
+    public static let iapScheduleOverlapErrorCode = "ENTITY_ERROR.INVALID_INTERVAL"
 }

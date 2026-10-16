@@ -137,6 +137,12 @@ public struct FakeIAPManualPrice: Hashable, Sendable {
     public init(id: String, territory: TerritoryCode, pricePointId: String, startDate: CalendarDate?, endDate: CalendarDate?) {
         self.id = id; self.territory = territory; self.pricePointId = pricePointId; self.startDate = startDate; self.endDate = endDate
     }
+    /// Spike S10 (Q1c): Apple derives a row id from its content (IAP, territory, point, start, end), so an unchanged row keeps
+    /// its id across schedule POSTs and a changed one gets a new id.
+    public init(iapId: String, territory: TerritoryCode, pricePointId: String, startDate: CalendarDate?, endDate: CalendarDate?) {
+        self.init(id: "iapprice-\(iapId)-\(territory.rawValue)-\(pricePointId)-\(startDate?.iso ?? "0")-\(endDate?.iso ?? "0")",
+                  territory: territory, pricePointId: pricePointId, startDate: startDate, endDate: endDate)
+    }
 }
 
 public struct FakeIAPSchedule: Hashable, Sendable {

@@ -43,8 +43,8 @@ private func post(_ step: String, _ body: Data) -> SpikeRequest {
     SpikeRequest(spikeId: "S10", step: step, method: "POST", path: "/v1/inAppPurchasePriceSchedules", query: "", body: body)
 }
 
-/// Spike S10 (docs/spikes/S10.md): the variables and templates of the IAP schedule steps. What FakeASC does with the
-/// POST (replace the whole schedule) is an assumption until the spike; these tests check that the steps can be sent.
+/// Spike S10 (docs/spikes/S10.md): the variables and templates of the IAP schedule steps; these tests check that the steps
+/// can be sent. FakeASC's answers to the POST follow the spike (FakeASCSpikeAlignmentTests).
 @Suite("Spike probe IAP schedule (S10)")
 struct SpikeProbeIAPScheduleTests {
     @Test func variablesNameTheSpikeIAPLadderAndManualPrices() async throws {
@@ -55,7 +55,7 @@ struct SpikeProbeIAPScheduleTests {
         #expect(values["PP_LIFE_USA_LOW"] == "pp-iap-spike-USA-4")
         #expect(values["PP_LIFE_USA_MID"] == "pp-iap-spike-USA-14")
         #expect(values["PP_LIFE_GBR_HIGH"] == "pp-iap-spike-GBR-24")
-        #expect(values["MANUAL_LIFE_USA"] == "iapprice-spike-0")
+        #expect(values["MANUAL_LIFE_USA"] == "iapprice-iap-spike-USA-pp-iap-spike-USA-29-0-0")
         #expect(values["CURPP_LIFE_USA"] == "pp-iap-spike-USA-29")
         #expect(values["ABOVEPP_LIFE_USA"] == "pp-iap-spike-USA-30")
         #expect(values["MANUAL_LIFE_GBR"] == nil)

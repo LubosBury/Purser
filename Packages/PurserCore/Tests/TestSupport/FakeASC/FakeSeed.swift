@@ -45,8 +45,8 @@ public enum FakeSeed {
             subscriptions: subs, pricePoints: points, regularPrices: regular, intros: [], promos: [], usedOfferCodes: [],
             iaps: [FakeIAP(id: "iap-life", productId: "com.example.fruitjar.lifetime", name: "Lifetime",
                            type: "NON_CONSUMABLE", state: .approved)],
-            iapSchedules: [FakeIAPSchedule(id: "sched-0", iapId: "iap-life", baseTerritory: "USA", manualPrices: [
-                FakeIAPManualPrice(id: "iapprice-0", territory: "USA", pricePointId: "pp-iap-life-USA-29", startDate: nil, endDate: nil)])],
+            iapSchedules: [FakeIAPSchedule(id: "iap-life", iapId: "iap-life", baseTerritory: "USA", manualPrices: [
+                FakeIAPManualPrice(iapId: "iap-life", territory: "USA", pricePointId: "pp-iap-life-USA-29", startDate: nil, endDate: nil)])],
             versions: [
                 FakeVersion(id: "ver-sub-y-1", owner: .subscription("sub-y"), number: 1, state: .approved),
                 FakeVersion(id: "ver-sub-n-1", owner: .subscription("sub-n"), number: 1, state: .prepareForSubmission),
