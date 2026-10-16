@@ -1,0 +1,15 @@
+{
+  "errors": [
+    {
+      "code": "ENTITY_ERROR.INVALID_INTERVAL",
+      "detail": "Adjacent intervals must not intersect for USA: [null - null] and [2026-11-15T00:00 - null]",
+      "id": "syn-6f8c0b309c",
+      "source": {
+        "pointer": "/data/relationships/manualPrices"
+      },
+      "status": "409",
+      "title": "There is a problem with the request entity"
+    }
+  ],
+  "x-purser-fixture": "recorded by Tools/record-fixture.sh; identifying strings redacted, ids and amounts made synthetic by Tools/anonymize-fixture.py"
+}

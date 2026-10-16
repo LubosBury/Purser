@@ -1,0 +1,75 @@
+{
+  "data": {
+    "id": "syn-0ee66654bd",
+    "links": {
+      "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd"
+    },
+    "relationships": {
+      "automaticPrices": {
+        "links": {
+          "related": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/automaticPrices",
+          "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/relationships/automaticPrices"
+        }
+      },
+      "baseTerritory": {
+        "links": {
+          "related": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/baseTerritory",
+          "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/relationships/baseTerritory"
+        }
+      },
+      "manualPrices": {
+        "data": [
+          {
+            "id": "syn-925912895e",
+            "type": "inAppPurchasePrices"
+          },
+          {
+            "id": "syn-5ca84e1a60",
+            "type": "inAppPurchasePrices"
+          }
+        ],
+        "links": {
+          "related": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/manualPrices",
+          "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/relationships/manualPrices"
+        },
+        "meta": {
+          "paging": {
+            "limit": 10,
+            "total": 2
+          }
+        }
+      }
+    },
+    "type": "inAppPurchasePriceSchedules"
+  },
+  "included": [
+    {
+      "attributes": {
+        "endDate": null,
+        "manual": true,
+        "startDate": null
+      },
+      "id": "syn-925912895e",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePrices/syn-925912895e"
+      },
+      "type": "inAppPurchasePrices"
+    },
+    {
+      "attributes": {
+        "endDate": null,
+        "manual": true,
+        "startDate": null
+      },
+      "id": "syn-5ca84e1a60",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePrices/syn-5ca84e1a60"
+      },
+      "type": "inAppPurchasePrices"
+    }
+  ],
+  "links": {
+    "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules"
+  },
+  "x-purser-fixture": "recorded by Tools/record-fixture.sh; identifying strings redacted, ids and amounts made synthetic by Tools/anonymize-fixture.py"
+}

@@ -1,0 +1,14 @@
+{
+  "data": [],
+  "included": [],
+  "links": {
+    "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/manualPrices?include=inAppPurchasePricePoint%2Cterritory&limit=200"
+  },
+  "meta": {
+    "paging": {
+      "limit": 200,
+      "total": 0
+    }
+  },
+  "x-purser-fixture": "recorded by Tools/record-fixture.sh; identifying strings redacted, ids and amounts made synthetic by Tools/anonymize-fixture.py"
+}

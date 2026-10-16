@@ -21,8 +21,10 @@ public enum SpikeVariables {
 
     /// APP_ID, SPIKE_GROUP, SPIKE_YEARLY_A/B/C, SPIKE_MONTHLY, SPIKE_LIFETIME, SPIKE_SCHEDULE and per subscription key K and
     /// territory T: PP_K_T_LOW/MID/HIGH, PRICE_K_T (current row), CURPP_K_T (its price point), ABOVEPP_K_T (the next point
-    /// above it), SCHED_K_T (scheduled row), INTRO_K_T (current intro, else the future one). For spike SL10n: VER_<K> and
-    /// LOC_<K>_<LOCALE> with K = YA, YB, YC, M, GROUP, LIFE.
+    /// above it), SCHED_K_T (scheduled row), INTRO_K_T (current intro, else the future one). For spike S10, on SPIKE_LIFETIME:
+    /// SPIKE_BASE (base territory of its schedule), PP_LIFE_T_LOW/MID/HIGH, MANUAL_LIFE_T (manual price in effect today),
+    /// CURPP_LIFE_T (its price point), ABOVEPP_LIFE_T (the next point above it), SCHED_LIFE_T (the first future manual
+    /// price). For spike SL10n: VER_<K> and LOC_<K>_<LOCALE> with K = YA, YB, YC, M, GROUP, LIFE.
     public static func catalog(snapshot: CatalogSnapshot?, config: WorkspaceConfig, today: CalendarDate) -> [String: String] {
         var values = ["APP_ID": config.appId]
         guard let snapshot else { return values }
@@ -53,7 +55,26 @@ public enum SpikeVariables {
         }
         if let iap = snapshot.iaps.values.first(where: { $0.productId == SpikeProbe.spikeIAPProductId }) {
             values["SPIKE_LIFETIME"] = iap.ascId
-            if let scheduleId = snapshot.iapSchedules[iap.ascId]?.scheduleId { values["SPIKE_SCHEDULE"] = scheduleId }
+            let schedule = snapshot.iapSchedules[iap.ascId]
+            if let scheduleId = schedule?.scheduleId { values["SPIKE_SCHEDULE"] = scheduleId }
+            if let base = schedule?.baseTerritory { values["SPIKE_BASE"] = base.rawValue }
+            // S10: the price point ladder and the manual prices of PurserSpikeLifetime per territory.
+            for territory in snapshot.territories.keys {
+                let code = territory.rawValue
+                let points = snapshot.pricePoints.points(productAscId: iap.ascId, territory: territory, planType: nil)
+                for (label, index) in ladder where index < points.count { values["PP_LIFE_\(code)_\(label)"] = points[index].id }
+                let rows = schedule?.manualPrices.filter { $0.territory == territory } ?? []
+                if let current = rows.last(where: { ($0.startDate.map { $0 <= today } ?? true) && ($0.endDate.map { today < $0 } ?? true) }) {
+                    if let id = current.ascId { values["MANUAL_LIFE_\(code)"] = id }
+                    values["CURPP_LIFE_\(code)"] = current.pricePointId
+                    if let index = points.firstIndex(where: { $0.id == current.pricePointId }), index + 1 < points.count {
+                        values["ABOVEPP_LIFE_\(code)"] = points[index + 1].id
+                    }
+                }
+                if let future = rows.first(where: { $0.startDate.map { today < $0 } ?? false }), let id = future.ascId {
+                    values["SCHED_LIFE_\(code)"] = id
+                }
+            }
         }
         // SL10n: VER_<K> = the version in preparation (else the live one), LOC_<K>_<LOCALE> = its localization ("en-US" -> EN_US).
         var owners: [(owner: LocalizationOwner, key: String)] = []

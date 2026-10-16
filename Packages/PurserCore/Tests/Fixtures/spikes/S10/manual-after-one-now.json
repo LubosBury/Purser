@@ -1,0 +1,72 @@
+{
+  "data": [
+    {
+      "attributes": {
+        "endDate": null,
+        "manual": true,
+        "startDate": null
+      },
+      "id": "syn-bc74f84c27",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePrices/syn-bc74f84c27"
+      },
+      "relationships": {
+        "inAppPurchasePricePoint": {
+          "data": {
+            "id": "syn-3b0713ed95",
+            "type": "inAppPurchasePricePoints"
+          }
+        },
+        "territory": {
+          "data": {
+            "id": "USA",
+            "type": "territories"
+          }
+        }
+      },
+      "type": "inAppPurchasePrices"
+    }
+  ],
+  "included": [
+    {
+      "attributes": {
+        "customerPrice": "2.11",
+        "proceeds": "1.11"
+      },
+      "id": "syn-3b0713ed95",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-3b0713ed95"
+      },
+      "relationships": {
+        "equalizations": {
+          "links": {
+            "related": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-3b0713ed95/equalizations",
+            "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-3b0713ed95/relationships/equalizations"
+          }
+        },
+        "territory": {}
+      },
+      "type": "inAppPurchasePricePoints"
+    },
+    {
+      "attributes": {
+        "currency": "USD"
+      },
+      "id": "USA",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/territories/USA"
+      },
+      "type": "territories"
+    }
+  ],
+  "links": {
+    "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/manualPrices?include=inAppPurchasePricePoint%2Cterritory&limit=200"
+  },
+  "meta": {
+    "paging": {
+      "limit": 200,
+      "total": 1
+    }
+  },
+  "x-purser-fixture": "recorded by Tools/record-fixture.sh; identifying strings redacted, ids and amounts made synthetic by Tools/anonymize-fixture.py"
+}

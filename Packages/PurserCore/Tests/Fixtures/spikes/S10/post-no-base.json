@@ -1,0 +1,15 @@
+{
+  "errors": [
+    {
+      "code": "ENTITY_ERROR.BASE_TERRITORY_INTERVAL_REQUIRED",
+      "detail": "There must be at least one manual price for the base territory.",
+      "id": "syn-642f8541c5",
+      "source": {
+        "pointer": "/data/relationships/manualPrices"
+      },
+      "status": "409",
+      "title": "There is a problem with the request entity"
+    }
+  ],
+  "x-purser-fixture": "recorded by Tools/record-fixture.sh; identifying strings redacted, ids and amounts made synthetic by Tools/anonymize-fixture.py"
+}

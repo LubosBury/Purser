@@ -1,0 +1,118 @@
+{
+  "data": [
+    {
+      "attributes": {
+        "endDate": "2026-11-15",
+        "manual": true,
+        "startDate": null
+      },
+      "id": "syn-9c626101f2",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePrices/syn-9c626101f2"
+      },
+      "relationships": {
+        "inAppPurchasePricePoint": {
+          "data": {
+            "id": "syn-9182ef11ff",
+            "type": "inAppPurchasePricePoints"
+          }
+        },
+        "territory": {
+          "data": {
+            "id": "USA",
+            "type": "territories"
+          }
+        }
+      },
+      "type": "inAppPurchasePrices"
+    },
+    {
+      "attributes": {
+        "endDate": null,
+        "manual": true,
+        "startDate": "2026-11-15"
+      },
+      "id": "syn-a937fe7dc2",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePrices/syn-a937fe7dc2"
+      },
+      "relationships": {
+        "inAppPurchasePricePoint": {
+          "data": {
+            "id": "syn-a6aa4c5bdb",
+            "type": "inAppPurchasePricePoints"
+          }
+        },
+        "territory": {
+          "data": {
+            "id": "USA",
+            "type": "territories"
+          }
+        }
+      },
+      "type": "inAppPurchasePrices"
+    }
+  ],
+  "included": [
+    {
+      "attributes": {
+        "customerPrice": "2.11",
+        "proceeds": "1.11"
+      },
+      "id": "syn-9182ef11ff",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-9182ef11ff"
+      },
+      "relationships": {
+        "equalizations": {
+          "links": {
+            "related": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-9182ef11ff/equalizations",
+            "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-9182ef11ff/relationships/equalizations"
+          }
+        },
+        "territory": {}
+      },
+      "type": "inAppPurchasePricePoints"
+    },
+    {
+      "attributes": {
+        "currency": "USD"
+      },
+      "id": "USA",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/territories/USA"
+      },
+      "type": "territories"
+    },
+    {
+      "attributes": {
+        "customerPrice": "4.11",
+        "proceeds": "3.11"
+      },
+      "id": "syn-a6aa4c5bdb",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-a6aa4c5bdb"
+      },
+      "relationships": {
+        "equalizations": {
+          "links": {
+            "related": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-a6aa4c5bdb/equalizations",
+            "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePricePoints/syn-a6aa4c5bdb/relationships/equalizations"
+          }
+        },
+        "territory": {}
+      },
+      "type": "inAppPurchasePricePoints"
+    }
+  ],
+  "links": {
+    "self": "https://api.appstoreconnect.apple.com/v1/inAppPurchasePriceSchedules/syn-0ee66654bd/manualPrices?include=inAppPurchasePricePoint%2Cterritory&limit=200"
+  },
+  "meta": {
+    "paging": {
+      "limit": 200,
+      "total": 2
+    }
+  },
+  "x-purser-fixture": "recorded by Tools/record-fixture.sh; identifying strings redacted, ids and amounts made synthetic by Tools/anonymize-fixture.py"
+}

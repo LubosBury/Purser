@@ -1,0 +1,35 @@
+{
+  "errors": [
+    {
+      "code": "PARAMETER_ERROR.ILLEGAL",
+      "detail": "The parameter 'include' can not be used with this request",
+      "id": "syn-9d21214043",
+      "source": {
+        "parameter": "include"
+      },
+      "status": "400",
+      "title": "A given parameter is not allowed for this request"
+    },
+    {
+      "code": "PARAMETER_ERROR.ILLEGAL",
+      "detail": "The parameter 'limit' can not be used with this request",
+      "id": "syn-be31661e72",
+      "source": {
+        "parameter": "limit"
+      },
+      "status": "400",
+      "title": "A given parameter is not allowed for this request"
+    },
+    {
+      "code": "PARAMETER_ERROR.ILLEGAL",
+      "detail": "The parameter 'filter[territory]' can not be used with this request",
+      "id": "syn-0d5b199aba",
+      "source": {
+        "parameter": "filter[territory]"
+      },
+      "status": "400",
+      "title": "A given parameter is not allowed for this request"
+    }
+  ],
+  "x-purser-fixture": "recorded by Tools/record-fixture.sh; identifying strings redacted, ids and amounts made synthetic by Tools/anonymize-fixture.py"
+}
