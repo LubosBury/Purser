@@ -20,7 +20,7 @@ struct PlanHistorySection: View {
                     session.showPlan(id: id)
                 })) {
                     TableColumn("Created") { row in
-                        Text(row.plan.createdAt.formatted(date: .numeric, time: .shortened)).font(PurserFont.figure)
+                        Text(Formatting.timestamp(row.plan.createdAt)).font(PurserFont.figure)
                     }
                     .width(140)
                     TableColumn("Plan") { row in Text(PlanFormatting.originLabel(row.plan.origin)) }

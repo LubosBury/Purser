@@ -10,7 +10,7 @@ public enum SyntheticImport {
     public static let regularColumns: [String: String] = ["C": alpha, "E": beta, "G": gamma]
     public static let introColumns: [String: String] = ["D": alpha, "F": beta, "H": gamma]
 
-    /// Intro columns D/F/H write PAY_UP_FRONT ONE_YEAR (-20 %), regular columns C/E/G are check-only,
+    /// Intro columns D/F/H write PAY_UP_FRONT ONE_YEAR (-20%), regular columns C/E/G are check-only,
     /// trial column I is check-only.
     public static func mapping(introWrites: Bool = true, regularWrites: Bool = false) -> ImportMapping {
         var targets: [ImportTarget] = []

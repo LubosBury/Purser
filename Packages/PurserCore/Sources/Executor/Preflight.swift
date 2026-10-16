@@ -119,7 +119,7 @@ package struct Preflight: Sendable {
                             // L3: the POST may have created a version this read does not show yet. Apple cannot delete a
                             // version and refuses a second one, so it is never sent again; the texts wait for a replan.
                             changes.append(ItemChange(seq: stored.item.seq, to: .stale, ascId: nil,
-                                                      note: "preflight 2b: the version may already exist although this read does not show it; re-sync and replan"))
+                                                      note: "preflight 2b: the version may already exist although this read does not show it; re-sync and re-plan"))
                         } else {
                             changes.append(ItemChange(seq: stored.item.seq, to: .pending, ascId: nil, note: "preflight 2b: not applied, back to Pending"))
                         }

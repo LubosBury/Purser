@@ -19,6 +19,8 @@ struct PurserApp: App {
                 .environment(model)
                 .frame(minWidth: 1100, minHeight: 700)
                 .preferredColorScheme(.dark)
+                // Date pickers and interpolated numbers follow the en_US UI, not the system locale.
+                .environment(\.locale, Locale(identifier: "en_US"))
                 .task { await model.launch() }
                 .task { backgroundSync.refresh() }
                 .task { mcpBridge.refresh() }
@@ -35,11 +37,13 @@ struct PurserApp: App {
         Settings {
             AppSettingsView(coordinator: backgroundSync, mcpBridge: mcpBridge)
                 .environment(model)
+                .environment(\.locale, Locale(identifier: "en_US"))
         }
         #if DEBUG
         Window("Spike console", id: "spike-console") {
             SpikeConsoleView()
                 .environment(model)
+                .environment(\.locale, Locale(identifier: "en_US"))
         }
         #endif
     }

@@ -201,7 +201,7 @@ public struct PlanArguments: Sendable {
         return count
     }
 
-    /// A percentage argument (20 = 20 %) as a fraction; nil when absent.
+    /// A percentage argument (20 = 20%) as a fraction; nil when absent.
     private func percent(_ key: String) throws -> Decimal? {
         guard let value = arguments[key], !value.isNull else { return nil }
         guard let percent = Self.decimal(value), percent > 0, percent < 100 else {

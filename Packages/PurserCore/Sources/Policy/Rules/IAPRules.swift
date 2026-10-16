@@ -10,7 +10,7 @@ struct L2IAPGeneratedPricesRule: PlanRule {
             guard let schedule = item.newIAPSchedule else { return nil }
             let manual = Set(schedule.manualPrices.map(\.territory)).union([schedule.baseTerritory])
             let generated = Set(context.snapshot.territories.keys).subtracting(manual).map(\.rawValue).sorted()
-            return .warn(id, item.cell, "\(generated.count) territories without a manual price follow the price from the base territory \(schedule.baseTerritory) (Apple adjusts FX and taxes): \(Format.list(generated)). For the \(manual.count) manual prices, FX and taxes are the user's to watch.")
+            return .warn(id, item.cell, "\(generated.count) territories without a manual price follow the price of the base territory \(schedule.baseTerritory), adjusted by Apple for exchange rates and taxes: \(Format.list(generated)). The \(manual.count) manual prices do not follow exchange rates or taxes.")
         }
     }
 }
@@ -31,7 +31,7 @@ struct L3IAPDecreaseRule: PlanRule {
             }
             guard !hits.isEmpty else { return nil }
             return .c2(id, item.cell, "IAP price decrease of more than \(Format.percent(AppleConstants.iapDecreaseC2Threshold)): \(Format.list(hits)).",
-                       riskClass: "L3 IAP price decrease of > 30 %")
+                       riskClass: "L3 IAP price decrease of > 30%")
         }
     }
 

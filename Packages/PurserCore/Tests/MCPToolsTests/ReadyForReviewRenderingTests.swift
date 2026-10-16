@@ -19,7 +19,7 @@ import PurserTestSupport
 
     @Test func incompleteVersionsNameEachOwnerAndTheMessage() throws {
         let rendered = try #require(MCPRender.incompleteVersions([.subscription("s")]) { _ in "Yearly" })
-        #expect(rendered["message"] == "Not ready: some texts were not written; replan the rest first (replan_rest).")
+        #expect(rendered["message"] == "Not ready: some texts were not written; re-plan the rest first (replan_rest).")
         #expect(rendered["owners"]?.arrayValue?.first?["kind"] == "subscription")
         #expect(rendered["owners"]?.arrayValue?.first?["name"] == "Yearly")
         #expect(MCPRender.incompleteVersions([]) { $0.ascId } == nil)
@@ -42,7 +42,7 @@ import PurserTestSupport
         #expect(rendered["incomplete_versions"] == nil)
         let incomplete = MCPRender.plan(stored, items: [], rows: [], appName: config.name, productName: { $0 }, flaggedOnly: false, maxRows: 10,
                                         incompleteVersions: MCPRender.incompleteVersions([.subscription("s")]) { _ in "Yearly" })
-        #expect(incomplete["incomplete_versions"]?["message"] == "Not ready: some texts were not written; replan the rest first (replan_rest).")
+        #expect(incomplete["incomplete_versions"]?["message"] == "Not ready: some texts were not written; re-plan the rest first (replan_rest).")
         #expect(incomplete["ready_for_review"] == nil)
     }
 }

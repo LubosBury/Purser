@@ -48,10 +48,10 @@ struct ApplyControls: View {
         case .draft:
             let excluded = excludedCount == 0 ? "" : " \(excludedCount) excluded cells stay unchanged."
             return "\(changeCount) changes will be written to App Store Connect.\(excluded)"
-        case .stale: return "The catalog has changed since the plan was built. Replan it before you apply it."
+        case .stale: return "The catalog has changed since the plan was built. Re-plan it before you apply it."
         case .applying: return controller.isRunning ? "" : "The write is paused."
         case .scheduled: return "The changes are written and wait for their effective date."
-        case .partiallyApplied: return "Some changes are written. Replan the rest, roll back, or close the plan."
+        case .partiallyApplied: return "Some changes are written. Re-plan the rest, roll back, or close the plan."
         case .effective: return "The changes are in effect."
         case .closed: return "The plan is closed."
         case .cancelled: return "The plan is cancelled."
@@ -88,7 +88,7 @@ struct ApplyControls: View {
             .purserButton()
             .disabled(controller.isWorking)
             Button("Roll back written…") { confirmWithdraw = true }.purserButton().disabled(busy)
-            Button("Replan the rest") { controller.replanRest(planId: planId) }.purserButton(primary: true).disabled(busy)
+            Button("Re-plan the rest") { controller.replanRest(planId: planId) }.purserButton(primary: true).disabled(busy)
         }
     }
 

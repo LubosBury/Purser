@@ -358,7 +358,7 @@ struct NewPlanSheet: View {
         }
         var nominal: Decimal?
         if !introNominal.isEmpty {
-            guard let value = ImportValueParser.amount(introNominal), value < 100 else { problems.append("The nominal discount must be 0–100 %."); return nil }
+            guard let value = ImportValueParser.amount(introNominal), value < 100 else { problems.append("The nominal discount must be 0–100%."); return nil }
             nominal = value / 100
         }
         let mode: OfferMode = (introPricing == .free || introPricing == .trialLengths) ? .freeTrial : introMode

@@ -142,7 +142,7 @@ struct O7PromoDeleteRule: PlanRule {
     func evaluate(_ context: PolicyContext) -> [Verdict] {
         context.items.compactMap { item -> Verdict? in
             guard case .deletePromo = item.payload, case let .promo(_, code) = item.cell else { return nil }
-            return .c2(id, item.cell, "The code \(code) will be burned forever after the deletion.", riskClass: "O7 promo offer deletion")
+            return .c2(id, item.cell, "The code \(code) can never be used again after the deletion.", riskClass: "O7 promo offer deletion")
         }
     }
 }

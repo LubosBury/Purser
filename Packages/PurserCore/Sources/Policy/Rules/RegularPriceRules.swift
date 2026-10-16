@@ -15,7 +15,7 @@ struct R2MonthlyWriteRule: PlanRule {
             return false
         }
         guard !monthly.isEmpty else { return [] }
-        return [.block(id, .plan, nil, "The plan contains \(monthly.count) writes of plan type MONTHLY; these are not allowed in v1.")]
+        return [.block(id, .plan, nil, "The plan contains \(monthly.count) writes of plan type MONTHLY; Purser writes UPFRONT prices only.")]
     }
 }
 

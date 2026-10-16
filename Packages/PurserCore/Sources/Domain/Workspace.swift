@@ -19,7 +19,7 @@ public struct ImportTarget: Hashable, Sendable, Codable {
     public var column: String               // A1 column letters, e.g. "G"
     public var productAscId: String
     public var kind: TargetKind
-    public var nominalDiscount: Decimal?    // e.g. 0.20 for a "-20 %" column (rule I5)
+    public var nominalDiscount: Decimal?    // e.g. 0.20 for a "-20%" column (rule I5)
     public var writes: Bool                 // false = check-only column
     public init(column: String, productAscId: String, kind: TargetKind, nominalDiscount: Decimal?, writes: Bool) {
         self.column = column; self.productAscId = productAscId; self.kind = kind

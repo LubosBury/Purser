@@ -81,7 +81,7 @@ import PurserTestSupport
         let verdicts = R9ConsentRule().evaluate(context(snapshot, [germany]))
         #expect(verdicts.map(\.severity) == [.warn])
         #expect(verdicts[0].message.contains("CERTAIN (DEU)"))
-        #expect(verdicts[0].message.contains("POSSIBLE (+100.0 %)"))
+        #expect(verdicts[0].message.contains("POSSIBLE (+100.0%)"))
     }
 
     @Test func r9StackedIncrease() {

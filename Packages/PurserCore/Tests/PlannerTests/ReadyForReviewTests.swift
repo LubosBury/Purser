@@ -53,7 +53,7 @@ private let editable: [LocalizationOwner: OwnerMetadata] = [
 struct ReadyForReviewTests {
     @Test func theCallToActionIsOnePlainSentence() {
         #expect(ReadyForReview.callToAction == "Ready for review: submit in App Store Connect")
-        #expect(ReadyForReview.incompleteMessage == "Not ready: some texts were not written; replan the rest first (replan_rest).")
+        #expect(ReadyForReview.incompleteMessage == "Not ready: some texts were not written; re-plan the rest first (replan_rest).")
     }
 
     @Test func aFinishedPlanListsTheOwnersOfItsWrittenVersions() {

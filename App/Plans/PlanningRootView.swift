@@ -73,7 +73,7 @@ struct PlansListView: View {
                         Task { await model.open(planId: id) }
                     })) {
                     TableColumn("Created") { row in
-                        Text(row.plan.createdAt.formatted(date: .numeric, time: .shortened)).font(PurserFont.figure)
+                        Text(Formatting.timestamp(row.plan.createdAt)).font(PurserFont.figure)
                     }
                     .width(140)
                     TableColumn("Plan") { row in Text(PlanFormatting.title(row.plan)) }

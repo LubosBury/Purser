@@ -16,13 +16,13 @@ extension Verdict {
 }
 
 enum Format {
-    /// 0.2 -> "20.0 %".
+    /// 0.2 -> "20.0%".
     static func percent(_ fraction: Decimal) -> String {
         var value = fraction * 100
         var rounded = Decimal()
         NSDecimalRound(&rounded, &value, 1, .plain)
         let text = "\(rounded)"
-        return (text.contains(".") ? text : text + ".0") + " %"
+        return (text.contains(".") ? text : text + ".0") + "%"
     }
 
     static func ratio(_ value: Decimal) -> String {

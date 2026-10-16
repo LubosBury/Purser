@@ -53,7 +53,7 @@ private func expectStaleVersionAndSkippedTexts(_ h: ExecutorHarness, _ planned: 
     #expect(items.filter { $0.item.seq != versionSeq }.allSatisfy { $0.state == .skipped })
     let notes = try h.audit.events(after: 0, limit: 100_000)
         .filter { $0.type == .itemStateChanged && $0.refs["seq"] == String(versionSeq) }.map(\.payloadJSON)
-    #expect(notes.contains { $0.contains("the version may already exist") && $0.contains("re-sync and replan") })
+    #expect(notes.contains { $0.contains("the version may already exist") && $0.contains("re-sync and re-plan") })
 }
 
 @Suite("Crash and resume: new versions (L3)")
@@ -93,7 +93,7 @@ struct NewVersionCrashResumeTests {
         let versionSeq = try #require(NewVersionScenario.versionSeq(planned))
         let notes = try h.audit.events(after: 0, limit: 100_000)
             .filter { $0.type == .itemStateChanged && $0.refs["seq"] == String(versionSeq) }.map(\.payloadJSON)
-        #expect(notes.contains { $0.contains("abort: the version may already exist") && $0.contains("re-sync and replan") })
+        #expect(notes.contains { $0.contains("abort: the version may already exist") && $0.contains("re-sync and re-plan") })
         let items = try h.store.items(planId: planned.planId)
         #expect(items.first { $0.item.seq == versionSeq }?.state == .stale)
         #expect(items.filter { $0.item.seq != versionSeq }.allSatisfy { $0.state == .skipped })

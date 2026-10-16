@@ -132,7 +132,7 @@ struct NewVersionApplyTests {
         #expect(refused["status"] as? Int == 409)
         #expect(refused["method"] as? String == "POST")
         #expect(refused["path"] as? String == "/v1/subscriptionVersions")
-        #expect(try versionNotes(h, seq: versionSeq).contains("409: App Store Connect refused the new version; the owner may already have a pending version. Replan."))
+        #expect(try versionNotes(h, seq: versionSeq).contains("409: App Store Connect refused the new version; the owner may already have a pending version. Re-plan."))
     }
 
     @Test func anotherRefusalOfTheVersionNamesItsStatusAndNoPendingVersion() async throws {
@@ -142,7 +142,7 @@ struct NewVersionApplyTests {
         await h.fake.inject(.serverError(status: 422, applyFirst: false), times: 1, matching: .pathPrefix("/v1/subscriptionVersions"))
         #expect(try await h.makeExecutor().apply(planId: planned.planId, confirm: Confirm.accept) == .stale)
         let notes = try versionNotes(h, seq: versionSeq)
-        #expect(notes.contains("422: App Store Connect refused the new version. Replan."))
+        #expect(notes.contains("422: App Store Connect refused the new version. Re-plan."))
         #expect(!notes.contains { $0.contains("pending version") })
         #expect(await writes(h) == ["POST /v1/subscriptionVersions"])
     }

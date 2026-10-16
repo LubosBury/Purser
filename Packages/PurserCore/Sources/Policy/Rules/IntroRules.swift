@@ -69,7 +69,7 @@ struct I7LiveIntroRule: PlanRule {
         if !lockedCells.isEmpty && !liveReplaceConfirmed {
             if context.spec.canary {
                 for cell in lockedCells {
-                    verdicts.append(.c2(id, cell, "Canary: replacing a live intro before spike S4b confirms it.", riskClass: "I7 canary of a live intro replacement"))
+                    verdicts.append(.c2(id, cell, "Canary: replaces a live intro before spike S4b has confirmed that the replacement works.", riskClass: "I7 canary of a live intro replacement"))
                 }
             } else {
                 verdicts.append(.block(id, .plan, nil, "Replacing a live intro (\(lockedCells.count) cells) waits for spike S4b; for now only a CANARY plan or a product with an Effective canary may run."))

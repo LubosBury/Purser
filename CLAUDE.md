@@ -47,7 +47,7 @@ Every screen follows these rules. Shared pieces: `App/Shared/Design/PurserCompon
 - Native controls first (`Button`, `Table`, `Picker`, `Toggle`, `List` sidebar, `.sheet`). Glass is `.glassEffect` in a `GlassEffectContainer` on macOS 26, `.ultraThinMaterial` before that, over a black window. Reduce Transparency and Reduce Motion must work.
 - The app is dark only: `.preferredColorScheme(.dark)` on the window group.
 - Status is never color alone: BLOCK, WARN and Verified carry a word and a differently shaped icon.
-- Every user-facing text is English, written as a plain string literal (no string catalog). Prices and percentages format with the `en_US` locale.
+- Every user-facing text is English, written as a plain string literal (no string catalog). Prices, percentages and dates format with the `en_US` locale; the windows set `\.locale` to en_US.
 
 ## Design tokens workflow
 

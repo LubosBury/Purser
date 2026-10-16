@@ -48,7 +48,7 @@ import PurserTestSupport
         let deep = ItemFactory.introPost(1, before: empty, sub: "s", territory: "USA", price: d("19.99"), start: today.adding(days: 3))
         let warn = I5NominalDiscountRule().evaluate(context(snapshot, [deep], nominal: ["s": d("0.20")]))
         #expect(warn.map(\.severity) == [.warn])
-        #expect(warn[0].message.contains("33.3 %"))
+        #expect(warn[0].message.contains("33.3%"))
     }
 
     @Test func i5Invariant() {

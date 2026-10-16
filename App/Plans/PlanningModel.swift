@@ -390,7 +390,7 @@ final class PlanningModel {
     /// Builds a draft off the main actor. The context carries the rate limit (A7, estimate), the stored items of a
     /// withdrawn plan (WITHDRAW) and the products unlocked by an Effective canary (I7, CR-11).
     private func draft(_ spec: PlanSpec) async -> PlanDraft? {
-        guard let snapshot else { errorMessage = "The catalog is empty; press Sync first."; return nil }
+        guard let snapshot else { errorMessage = "The catalog is empty; run a sync first."; return nil }
         isWorking = true
         defer { isWorking = false }
         let rateLimit = await deps.rateLimit()

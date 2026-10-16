@@ -66,6 +66,6 @@ struct Snapper: Sendable {
         var value = fraction * 100
         var rounded = Decimal()
         NSDecimalRound(&rounded, &value, 1, .plain)
-        return "\(rounded) %"
+        return "\(rounded)%"
     }
 }

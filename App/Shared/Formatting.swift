@@ -50,6 +50,11 @@ enum Formatting {
         date?.iso ?? "—"
     }
 
+    /// Local date and time in en_US form, e.g. "10/16/2026, 12:20 PM".
+    static func timestamp(_ date: Date) -> String {
+        date.formatted(Date.FormatStyle(date: .numeric, time: .shortened, locale: Locale(identifier: "en_US")))
+    }
+
     static func age(since date: Date, now: Date = Date()) -> String {
         let minutes = Int(now.timeIntervalSince(date) / 60)
         if minutes < 1 { return "a moment ago" }

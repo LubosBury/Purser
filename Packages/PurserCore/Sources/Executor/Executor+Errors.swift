@@ -91,8 +91,8 @@ extension Executor {
                 // now, this plan did not create it, so its texts must not go into it unseen: Stale, the dependents wait for a
                 // replan. Any other refusal is Stale for the same reason, without the guess about a pending version.
                 let note = status == 409
-                    ? "409: App Store Connect refused the new version; the owner may already have a pending version. Replan."
-                    : "\(status): App Store Connect refused the new version. Replan."
+                    ? "409: App Store Connect refused the new version; the owner may already have a pending version. Re-plan."
+                    : "\(status): App Store Connect refused the new version. Re-plan."
                 try setItem(planId, seq, to: .stale, error: info, note: note, requestEvent: event)
                 try skipDependents(of: seq, planId: planId, reason: "is stale")
                 try noteError(info, seq: seq, context: &context)
@@ -249,7 +249,7 @@ extension Executor {
                 if case .createMetadataVersion = stored.item.payload {
                     // L3, as preflight 2b on resume: the version may exist although the read does not show it yet.
                     try setItem(planId, stored.item.seq, to: .stale,
-                                note: "abort: the version may already exist although this read does not show it; re-sync and replan")
+                                note: "abort: the version may already exist although this read does not show it; re-sync and re-plan")
                     mayHaveWritten = true
                     continue
                 }

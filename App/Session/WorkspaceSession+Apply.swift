@@ -69,7 +69,7 @@ extension WorkspaceSession {
         return try await executor.withdrawWritten(planId: planId, planner: planner)
     }
 
-    /// "Replan the rest" from the stored spec (an import plan re-plans its stored table).
+    /// "Re-plan the rest" from the stored spec (an import plan re-plans its stored table).
     func replanRest(planId: String) async throws -> String {
         guard let executor = activeExecutor ?? readExecutor else { throw WorkspaceSessionError.syncUnavailable }
         defer { applyRevision += 1 }

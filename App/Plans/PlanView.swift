@@ -77,7 +77,7 @@ struct PlanView: View {
     private var header: some View {
         PlanHeader(plan: plan, onBack: onBack) {
             if model.isWorking { ProgressView().controlSize(.small) }
-            Button("Replan") { Task { await model.replan(planId: plan.id) } }
+            Button("Re-plan") { Task { await model.replan(planId: plan.id) } }
                 .purserButton()
                 .disabled(!editable || model.isWorking)
             Button("Cancel plan") { Task { await model.cancel(planId: plan.id) } }
@@ -96,8 +96,8 @@ struct PlanView: View {
                 versionOwnersRow(ReadyForReview.callToAction, kind: .info, names: presentation.readyForReview)
             }
             if !presentation.incompleteVersions.isEmpty {
-                // The MCP wording names the replan_rest tool; here the action is the "Replan the rest" button.
-                versionOwnersRow("Not ready: some texts were not written; use Replan the rest first.", kind: .warning,
+                // The MCP wording names the replan_rest tool; here the action is the "Re-plan the rest" button.
+                versionOwnersRow("Not ready: some texts were not written; use Re-plan the rest first.", kind: .warning,
                                  names: presentation.incompleteVersions)
             }
         }

@@ -114,7 +114,7 @@ func promoCreate(_ seq: Int, sub: String = "s", code: String, mode: OfferMode = 
         let snapshot = catalog()
         #expect(L3IAPDecreaseRule().evaluate(context(snapshot, [scheduleItem(snapshot, prices: ["USA": d("79.99"), "DEU": d("89.99")])])).isEmpty)
         let verdicts = L3IAPDecreaseRule().evaluate(context(snapshot, [scheduleItem(snapshot, prices: ["USA": d("59.99"), "DEU": d("89.99")])]))
-        #expect(verdicts.map(\.riskClass) == ["L3 IAP price decrease of > 30 %"])
+        #expect(verdicts.map(\.riskClass) == ["L3 IAP price decrease of > 30%"])
         #expect(verdicts[0].message.contains("USA 99.99 → 59.99"))
     }
 }

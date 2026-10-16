@@ -24,16 +24,6 @@ enum PlanFormatting {
         }
     }
 
-    static func color(_ severity: Severity) -> Color {
-        switch severity {
-        case .block: return .red
-        case .confirm(.c2): return .orange
-        case .confirm: return .yellow
-        case .warn: return .secondary
-        case .pause: return .purple
-        }
-    }
-
     static func ruleTitle(_ rule: RuleID?) -> String {
         switch rule?.rawValue {
         case "I4": return "intro ≥ regular price"

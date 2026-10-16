@@ -8,7 +8,7 @@ public enum ReadyForReview {
     public static let callToAction = "Ready for review: submit in App Store Connect"
     /// A version whose texts did not all land must not be submitted as it is. MCP wording (names the tool); the Plan screen
     /// names its own button instead.
-    public static let incompleteMessage = "Not ready: some texts were not written; replan the rest first (replan_rest)."
+    public static let incompleteMessage = "Not ready: some texts were not written; re-plan the rest first (replan_rest)."
 
     /// The owners of a finished plan's written versions that still wait in preparation, sorted: `ready` when every text the
     /// plan has for the owner is in the version, `incomplete` otherwise.

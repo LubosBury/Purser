@@ -23,7 +23,7 @@ public struct TerritoryAmount: Hashable, Sendable, Codable {
 
 public enum IntroPricing: Hashable, Sendable, Codable {
     case freeTrial
-    case percentOfRegular(Decimal)                 // 0.80 = 80 % of the regular price during the intro
+    case percentOfRegular(Decimal)                 // 0.80 = 80% of the regular price during the intro
     case table([TerritoryAmount])
     case trialLengths([TerritoryCode: OfferDuration])
 }

@@ -25,7 +25,7 @@ final class Notifier {
 
     /// Spec §6: a live intro ended by PATCH_END whose replacement POST was not written leaves the cell without an offer from D.
     func noOffer(workspace: String, cells: Int, before: CalendarDate) {
-        post(title: "Purser · \(workspace)", body: "\(cells) cells without an offer (NO_OFFER), replan before \(before.iso)")
+        post(title: "Purser · \(workspace)", body: "\(cells) cells without an offer (NO_OFFER), re-plan before \(before.iso)")
     }
 
     private func post(title: String, body: String) {
