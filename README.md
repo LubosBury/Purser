@@ -4,6 +4,17 @@ Purser is a native macOS app for one user that plans, writes and verifies the pr
 
 Every change takes the same path: import from a Google Sheet or a CSV, or a rule → diff against the live ASC state → check of Apple's rules → stronger confirmation for risky changes → write item by item → verification by reading back → a record in the append-only audit.
 
+Website: [bozkovo.org/purser](https://www.bozkovo.org/purser)
+
+![Purser's catalog: the subscriptions and in-app purchases of the Juice app, and the price of Pro Yearly in each of its 175 territories.](docs/images/catalog.png)
+
+<p>
+  <img src="docs/images/new-plan.png" alt="The New plan sheet: what should change, the products, the new prices, the start date, existing subscribers and a reason." width="38%">
+  <img src="docs/images/audit.png" alt="The audit log in History: numbered events with their time, type and references, httpSent and httpReceived in pairs." width="60%">
+</p>
+
+The catalog of a real app, a new plan, and the audit log: every request is logged before it leaves and again when Apple answers.
+
 > **Purser writes to production.** The App Store Connect API has no sandbox: every price Purser writes is a real price in your live app, and every text it writes goes into your app's real records in App Store Connect. A new version Purser creates to change the texts of an approved product cannot be deleted through the API, and the Product IDs of a clone can never be used again, not even after the clone is deleted. Review each plan before you apply it, start with one territory (the CANARY flag), and keep the first writes on a subscription group that is never submitted for review. The software is provided as is, without warranty of any kind (see [LICENSE](LICENSE)); you are responsible for the changes it makes in your account.
 >
 > Purser is an independent project. It is not affiliated with, endorsed by or sponsored by Apple Inc. App Store Connect, App Store and TestFlight are trademarks of Apple Inc.
