@@ -10,7 +10,7 @@ Every change takes the same path: import from a Google Sheet or a CSV, or a rule
 
 ## Tested on a real app
 
-Purser was developed and tested on the maintainer's own app, [Juice: Fuel & EV Charge Log](https://apps.apple.com/app/juice-fuel-ev-charge-log/id6787720329). The specification and the spike records in `docs/` call it Juice. All live trials ran in its "Purser Spike" subscription group, which is never submitted for review. The text and cloning writes added in 1.2 have not run against live App Store Connect yet: spike SL10n ([docs/spikes/SL10n.md](docs/spikes/SL10n.md)) is pending, and until it runs, what Purser expects Apple to answer to those requests is an assumption.
+Purser was developed and tested on the maintainer's own app, [Juice: Fuel & EV Charge Log](https://apps.apple.com/app/juice-fuel-ev-charge-log/id6787720329). The specification and the spike records in `docs/` call it Juice. The spikes ran in its "Purser Spike" subscription group, which is never submitted for review. The text and cloning writes added in 1.2 have since been used in production on Juice; spike SL10n ([docs/spikes/SL10n.md](docs/spikes/SL10n.md)), which records Apple's exact answers to those requests, is not written up yet.
 
 Spike S10 ([docs/spikes/S10.md](docs/spikes/S10.md)) confirmed on 2026-10-16 that a POST of an in-app purchase's price schedule replaces the whole schedule, future prices included. Since 1.3 Purser writes in-app purchase schedules that already have manual prices; rule S10 and its exception S10a no longer block anything. A territory whose manual price a plan removes moves to the price Apple derives from the base territory in the same request, which the plan shows as a warning (L2).
 
